@@ -119,3 +119,17 @@ def test_a_crash_is_explained_to_the_secret_holder(
     response = post(PAYLOAD, ingest_secret)
     assert response.status_code == 500
     assert response.json() == {"error": "RuntimeError: relation health_samples does not exist"}
+
+
+@pytest.mark.usefixtures("db")
+def test_resend_refreshes_updated_at(ingest_secret: str) -> None:
+    from datetime import datetime
+
+    from sqlalchemy import update
+
+    post(PAYLOAD, ingest_secret)
+    with SessionLocal() as s:
+        s.execute(update(DailyMetric).values(updated_at=datetime(2000, 1, 1)))
+        s.commit()
+    post(PAYLOAD, ingest_secret)
+    assert day_row(date(2026, 10, 7)).updated_at.year > 2000
