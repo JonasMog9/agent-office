@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -43,7 +43,12 @@ def recompute_days(session: Session, days: Iterable[date]) -> None:
             Sample(r.metric, r.start_at, r.end_at, r.value, r.category, r.day) for r in rows
         )
         stmt = _insert(session, DailyMetric).values(day=day, **summary)
-        session.execute(stmt.on_conflict_do_update(index_elements=["day"], set_=summary))
+        # ORM onupdate defaults don't fire for ON CONFLICT DO UPDATE, so set updated_at here.
+        session.execute(
+            stmt.on_conflict_do_update(
+                index_elements=["day"], set_={**summary, "updated_at": func.now()}
+            )
+        )
 
 
 def ingest_shortcut_payload(session: Session, body: dict) -> ParseResult:

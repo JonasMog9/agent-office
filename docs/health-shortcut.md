@@ -66,7 +66,7 @@ Build a new block (steps 1–6) for each metric below, changing only the **Type*
 | Heart Rate Variability | `hrv` | done above |
 | Resting Heart Rate | `resting_hr` | |
 | Respiratory Rate | `respiratory_rate` | |
-| Sleeping Wrist Temperature (may show as Wrist Temperature) | `wrist_temp` | °C or °F both work |
+| Sleeping Wrist Temperature (may show as Wrist Temperature) | `wrist_temp` | °C or °F both work. Needs Apple Watch Series 8 / Ultra or later; skip this block on older watches |
 | VO2 Max (Cardio Fitness) | `vo2max` | |
 | Running Ground Contact Time | `ground_contact` | |
 | Running Vertical Oscillation | `vertical_oscillation` | |
