@@ -30,6 +30,7 @@ backend/
     ingest/          iOS Shortcut payloads + Apple Health export.xml → daily_metrics; Strava → workouts
     metrics/         recovery, strain, sleep scores (pure functions)
     coach/           training load, zones, race predictor, plan generator (pure functions)
+      ml/            scikit-learn race-time and fitness models: training script, saved model + metrics
     scout/           DexScreener / CoinGecko ingestion and token scoring
     agents/          Manager, Health Coach, Market Scout (Claude Agent SDK) + event bus
     telegram/        bot webhook handler and scheduled pushes
@@ -57,3 +58,5 @@ PLAN.md
 - **Every agent step emits an event** `{agent, status: idle|thinking|walking|working|talking, target, text}` to the event bus; the office animates from these.
 - **Keep CI green.** Run `ruff check`, `ruff format --check` and `pytest` before pushing.
 - Compare HRV only against the user's own baseline (Apple Watch reports SDNN, not RMSSD).
+- **ML is evaluated, not assumed.** Any learned model ships with a reproducible training script, cross-validated metrics, and a comparison against the simple baseline it replaces. If it doesn't beat the baseline, say so and keep the baseline.
+- **Keep the challenges log current.** When a real problem comes up (a bug in production, a wrong assumption, a tool or platform limitation, a design pivot), add a row to the Challenges log in PLAN.md in the same PR that fixes it: date, problem, how it was found, fix, lesson. Newest first. Only real events, never invented ones.
