@@ -100,6 +100,13 @@ Things to know about the data:
 - Two free sources, each owning different data:
   - **iOS Shortcut** → `POST /ingest/health`: daily wellness (HRV, resting HR, respiratory rate, wrist temperature, sleep, active energy, VO2max, Apple's running-form metrics). A personal automation runs it **when you open Instagram**, because iOS locks Health data while the phone is locked and an app opening means it's unlocked. The shortcut sends only once a day and always sends the **last 3 days**, so a missed day fills itself in. The backend upserts by date, so repeats never duplicate.
   - **Strava API** → `/strava/webhook`: every run (and other HR workouts) with second-by-second heart rate, pace, cadence and splits. Strava calls the backend when an activity syncs from the watch, so no phone step is needed. It's the source of truth for workouts; the Shortcut doesn't send them, which avoids double counting.
+- **How the Strava connection works.** Strava uses OAuth 2.0, and there's only one athlete (you), so there's no login page to build:
+  - **One-time authorization.** Open Strava's authorize URL once in a browser with `scope=read,activity:read_all` (needed to see private runs), approve it, and swap the returned code for tokens at `POST https://www.strava.com/oauth/token`. Save the refresh token as `STRAVA_REFRESH_TOKEN`. A tiny `scripts/strava_auth.py` can do this.
+  - **Access tokens last 6 hours.** Before calling the API, the backend exchanges the refresh token for a fresh access token (`grant_type=refresh_token`). Strava may hand back a *new* refresh token when it does; store the latest one in Postgres (a one-row `strava_tokens` table) and treat the env var only as the starting value.
+  - **What to pull for each run.** `GET /athlete/activities` (list, with `after=` for backfill), `GET /activities/{id}` (summary, per-km `splits_metric`, laps and `best_efforts` such as fastest 5K and 10K inside a run), and `GET /activities/{id}/streams` with `keys=time,distance,heartrate,velocity_smooth,cadence,altitude,watts` and `key_by_type=true` (second-by-second data).
+  - **Webhook.** Register one push subscription (`POST /push_subscriptions` with a callback URL and a verify token). Strava first sends a `GET` with `hub.challenge` that the route must echo back, then a `POST` for every activity create, update or delete. The event carries only IDs, so the handler fetches the activity itself; reply 200 fast and do the fetch in the background.
+  - **Rate limits.** Strava caps requests per 15 minutes and per day (the exact numbers are on your API settings page). A backfill should page slowly and stop when it hits a `429`.
+- **What Strava adds that Apple Health can't.** Apple Health is the source for the body (HRV, resting HR, sleep, temperature, VO2max); Strava is the source for the runs. Per-second heart rate makes TRIMP and strain exact instead of estimated from averages. Splits and `best_efforts` give the race predictor real hard efforts without a separate time trial. Pace and cadence streams feed the pace zones, running-form trends and the plan's check of whether yesterday's workout was done as prescribed. And because the watch syncs to Strava on its own, workouts arrive without any phone step.
 - **Backfill on day one.** Recovery needs a 60-day baseline. Instead of waiting weeks, import Apple Health's full export once (Health app → profile → Export All Health Data → `export.xml`) and pull past activities from the Strava API.
 - **Keep the phone passcode on.** It's what encrypts Health data on the device; the Instagram trigger already solves the locked-phone problem.
 - Strava's API terms (tightened in late 2024) limit how Strava data can be shown to others and used with AI. Using your own data for your own coach is the normal case, but re-read the terms before putting Strava-derived charts in the public demo or stats page.
@@ -115,8 +122,11 @@ There are seven phases, and each ends with something working in the cloud. Do th
 ### Phase 0: Accounts and repo
 
 - [x] Create a public GitHub repo called `agent-office`.
-- [ ] Sign up for Railway (or Fly.io), get an Anthropic API key, and create a Telegram bot with @BotFather.
-- [ ] Install the Strava app, connect it to Apple Health so watch workouts sync to Strava automatically, and create a Strava API application (free) at strava.com/settings/api.
+- [x] Sign up for Railway.
+- [x] Get an Anthropic (Claude) API key.
+- [ ] Create a Telegram bot with @BotFather.
+- [x] Create a Strava API application (free) at strava.com/settings/api.
+- [ ] Install the Strava app and connect it to Apple Health, so watch workouts sync to Strava automatically.
 - [ ] Make sure the Shortcuts app is on your iPhone (built in, free). The health-sync shortcut itself is built in Phase 2, once the endpoint exists.
 - [x] Write `CLAUDE.md`: the stack, the folder layout, "never commit secrets", and "write tests for scoring code".
 
@@ -137,7 +147,7 @@ Done when the live URL returns OK.
 
 - [ ] Add a `POST /ingest/health` endpoint protected by a secret header. It accepts our own simple JSON format (one entry per day per metric) and upserts by date, so resending the last 3 days is safe.
 - [ ] Build the iOS Shortcut that sends the last 3 days of HRV, resting HR, respiratory rate, wrist temperature, sleep, active energy, VO2max and running-form metrics to the endpoint. Add a personal automation: **When Instagram is opened → run it, with "Ask Before Running" off**, and skip if it already sent today. Write the step-by-step build in `docs/health-shortcut.md`.
-- [ ] Add Strava: OAuth for your account (refresh token stored as a secret), a `/strava/webhook` route (subscription check plus activity events, accepting only your athlete ID), and fetching each new activity's summary and HR, pace and cadence streams into `workouts`.
+- [ ] Add Strava (details in the Health Coach section): token refresh using `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` and `STRAVA_REFRESH_TOKEN`, keeping the latest refresh token in Postgres, a `/strava/webhook` route (subscription check plus activity events, accepting only your athlete ID), and fetching each new activity's summary, splits, best efforts and HR, pace and cadence streams into `workouts`.
 - [ ] Backfill: a one-off script that imports Apple Health's `export.xml` into `daily_metrics`, and one that pulls your past Strava activities, so the 60-day baselines exist from day one.
 - [ ] Store raw payloads, then parse them into a clean `daily_metrics` table (HRV, resting heart rate, respiratory rate, temperature, sleep, active energy, VO2max) and a `workouts` table (from Strava).
 - [ ] Write the recovery, strain and sleep scores as plain Python functions (see the Health Coach section). Each one returns a number plus the reasons behind it.

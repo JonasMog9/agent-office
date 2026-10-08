@@ -28,6 +28,7 @@ backend/
     main.py          FastAPI app, routes (/health, /ingest/health, /strava/webhook, /telegram, /ws/events)
     db/              SQLAlchemy models, session, Alembic migrations
     ingest/          iOS Shortcut payloads + Apple Health export.xml → daily_metrics; Strava → workouts
+    strava/          OAuth token refresh, API client, webhook handler, backfill
     metrics/         recovery, strain, sleep scores (pure functions)
     coach/           training load, zones, race predictor, plan generator (pure functions)
     scout/           DexScreener / CoinGecko ingestion and token scoring
@@ -35,6 +36,7 @@ backend/
     telegram/        bot webhook handler and scheduled pushes
   tests/             pytest, mirrors app/
   Dockerfile
+  scripts/         one-off tools, e.g. strava_auth.py (first OAuth exchange) and backfills
   pyproject.toml
 frontend/            Vite + React + TS + Phaser office
 docs/                how-tos, e.g. building the iOS health-sync Shortcut
@@ -50,6 +52,8 @@ PLAN.md
 - **Write tests for scoring code.** Everything in `metrics/`, `coach/` and `scout/` scoring gets pytest coverage with hand-made data, including missing days, outliers and short histories. Check race prediction against known VDOT tables.
 - **Scoring functions are pure** and return the value plus a component breakdown (the "reasons"), so agents can explain them.
 - **Market Scout is read-only.** No wallet, no exchange keys, no buy/sell actions. Every brief ends with a "not financial advice" line.
+- **Environment variables** (names only; values live in Railway and a local `.env`): `ANTHROPIC_API_KEY`, `DATABASE_URL`, `INGEST_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REFRESH_TOKEN`, `STRAVA_ATHLETE_ID`, `STRAVA_WEBHOOK_VERIFY_TOKEN`. Keep `.env.example` in sync with this list.
+- **Strava tokens rotate.** Access tokens expire after 6 hours; refresh them before each API call. When a refresh returns a new refresh token, persist it in the `strava_tokens` table and use that from then on; `STRAVA_REFRESH_TOKEN` is only the seed value. All Strava HTTP calls go through one client module that handles refresh and `429` backoff.
 - **Telegram bot answers only the owner's user ID** (from an env var); reject everyone else. Likewise the Strava webhook only processes events for the owner's athlete ID.
 - **Ingestion is idempotent.** The Shortcut resends the last 3 days every time, so `/ingest/health` upserts by date. Strava is the source of truth for workouts; Apple Health data covers daily wellness only, so nothing is double counted.
 - **Every agent step emits an event** `{agent, status: idle|thinking|walking|working|talking, target, text}` to the event bus; the office animates from these.
