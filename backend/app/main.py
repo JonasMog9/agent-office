@@ -1,4 +1,7 @@
-"""FastAPI app. Routes for /ingest/health, /telegram and /ws/events land in later phases."""
+"""FastAPI app.
+
+Routes for /ingest/health, /strava/webhook, /telegram and /ws/events land in later phases.
+"""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
