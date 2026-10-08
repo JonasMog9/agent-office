@@ -116,7 +116,7 @@ There are seven phases, and each ends with something working in the cloud. Do th
 
 - [x] Create a public GitHub repo called `agent-office`.
 - [x] Sign up for Railway (or Fly.io), get an Anthropic API key, and create a Telegram bot with @BotFather.
-- [ ] Install the Strava app, connect it to Apple Health so watch workouts sync to Strava automatically, and create a Strava API application (free) at strava.com/settings/api.
+- [x] Install the Strava app, connect it to Apple Health so watch workouts sync to Strava automatically, and create a Strava API application (free) at strava.com/settings/api.
 - [x] Make sure the Shortcuts app is on your iPhone (built in, free). The health-sync shortcut itself is built in Phase 2, once the endpoint exists.
 - [x] Write `CLAUDE.md`: the stack, the folder layout, "never commit secrets", and "write tests for scoring code".
 
@@ -135,8 +135,8 @@ Done when the live URL returns OK. ✅ Live at https://agent-office-production-d
 
 ### Phase 2: Health data pipeline (the resume core)
 
-- [ ] Add a `POST /ingest/health` endpoint protected by a secret header. It accepts our own simple JSON format (one entry per day per metric) and upserts by date, so resending the last 3 days is safe.
-- [ ] Build the iOS Shortcut that sends the last 3 days of HRV, resting HR, respiratory rate, wrist temperature, sleep, active energy, VO2max and running-form metrics to the endpoint. Add a personal automation: **When Instagram is opened → run it, with "Ask Before Running" off**, and skip if it already sent today. Write the step-by-step build in `docs/health-shortcut.md`.
+- [x] Add a `POST /ingest/health` endpoint protected by a secret header (`X-Ingest-Secret`). It accepts our own simple JSON format (one text field per metric, one `start|end|value|unit` line per sample), stores each sample once in `health_samples` and rebuilds the affected `daily_metrics` days, so resending the last 3 days is safe.
+- [ ] Build the iOS Shortcut that sends the last 3 days of HRV, resting HR, respiratory rate, wrist temperature, sleep, active energy, VO2max and running-form metrics to the endpoint. Add a personal automation: **When Instagram is opened → run it, with "Ask Before Running" off**, and skip if it already sent today. Step-by-step build: [docs/health-shortcut.md](docs/health-shortcut.md).
 - [ ] Add Strava: OAuth for your account (refresh token stored as a secret), a `/strava/webhook` route (subscription check plus activity events, accepting only your athlete ID), access tokens refreshed as they expire (every 6 hours), and each new refresh token Strava rotates in saved to the database, since the env var only holds the first one, and fetching each new activity's summary and HR, pace and cadence streams into `workouts`.
 - [ ] Backfill: a one-off script that imports Apple Health's `export.xml` into `daily_metrics`, and one that pulls your past Strava activities, so the 60-day baselines exist from day one.
 - [ ] Store raw payloads, then parse them into a clean `daily_metrics` table (HRV, resting heart rate, respiratory rate, temperature, sleep, active energy, VO2max) and a `workouts` table (from Strava).
