@@ -152,12 +152,19 @@ Done when the Instagram-triggered shortcut and Strava both land real data every 
 - [ ] Training load: daily TRIMP, CTL/ATL/form, and ACWR, with overtraining and injury-risk flags.
 - [ ] HR zones (Karvonen) and pace zones from VDOT.
 - [ ] Race predictor: VDOT from best recent efforts, Riegel scaling, the VO2max cross-check, and a mileage adjustment for the marathon. Log every prediction to a `predictions` table.
+- [ ] ML race predictor (scikit-learn), next to the formula one:
+  - Train a regression model (start with ridge and gradient boosting) on a public dataset of many runners' training features (weekly mileage, long runs, recent race times) and marathon results. Your own handful of races is far too little to train on.
+  - Evaluate it with k-fold cross-validation against the Riegel and VDOT baselines on the same folds, and report the error (MAE in minutes). If the model doesn't beat the formulas, keep the formulas and say so: an honest negative result is still a result.
+  - Give a range, not a point, using quantile regression or the cross-validation error spread.
+  - Apply it to your own features and show it beside the formula estimate. Every prediction goes into the `predictions` table, so it can be compared with real races later.
+  - Lives in `coach/ml/` with a notebook-free, reproducible training script, and the model file and its metrics saved. Tests cover feature building on hand-made data.
+- [ ] Personal fitness model: a regression of pace on heart rate (plus grade and temperature when available) over your Strava run segments, refit over a rolling window. The trend of "pace at HR 150" is your aerobic fitness curve: hundreds of data points from your own runs, so ML on your own data is meaningful here.
 - [ ] Plan generator: goal race + date → base, build, peak and taper weeks. Each morning it adjusts the day's workout using recovery and ACWR.
 - [ ] Running form trends and early-warning rules (possible illness, injury risk).
 
-Claude Code prompt: `/plan Add a coach package: TRIMP-based CTL/ATL/TSB and ACWR, Karvonen HR zones, a race predictor combining Daniels VDOT, Riegel and the Apple VO2max estimate with a low-mileage marathon adjustment, and a periodized plan generator that adapts the next workout to recovery. Pure functions with pytest tests against known VDOT tables.`
+Claude Code prompt: `/plan Add a coach package: TRIMP-based CTL/ATL/TSB and ACWR, Karvonen HR zones, a race predictor combining Daniels VDOT, Riegel and the Apple VO2max estimate with a low-mileage marathon adjustment, and a periodized plan generator that adapts the next workout to recovery. Pure functions with pytest tests against known VDOT tables. Then add a scikit-learn race predictor trained on a public runners dataset, cross-validated against the Riegel/VDOT baselines, plus a pace-vs-HR fitness model fit on my Strava segments.`
 
-Done when "Predict my marathon" gives a sensible range and a 12-week plan generates and adapts to a red recovery day.
+Done when "Predict my marathon" gives a sensible range (formula and ML side by side, with the ML model's cross-validated error against the baselines written up), and a 12-week plan generates and adapts to a red recovery day.
 
 ### Phase 3: Agents (Claude Agent SDK)
 
@@ -202,6 +209,19 @@ Done when a week of daily briefs has landed.
 - [ ] Add a simple stats page: a 30-day readiness chart, plus the Scout's flags vs. what happened.
 - [ ] Record the demo video (script below), and post it on LinkedIn with the repo link.
 
+## Challenges log
+
+Problems hit while building this, how they were found, and what fixed them, newest first. This is the "tell me about a problem you ran into" list for interviews. Claude Code adds a row whenever a real problem comes up; see CLAUDE.md.
+
+| Date | Problem | How it showed up / was found | Fix | Lesson |
+| --- | --- | --- | --- | --- |
+| 2026-10-08 | Database tables never created in production | The first real Shortcut upload got a bare `Internal Server Error`. There was no way to see why from the phone, and logs were in another tool. | First made failures visible: the endpoint now returns the error type and message to the authenticated caller, and `/health` reports the database's migration version. That showed `UndefinedTable` and `"migration": "none"`: Railway had silently never run the pre-deploy migration step. Moved migrations into the container's start command, which is safe to repeat. | Make failures observable before guessing. Don't depend on a platform feature you can't see running; verify deploy steps from the outside. |
+| 2026-10-08 | Building the iOS Shortcut | Actions renamed between iOS versions ("Show Result" became "Show Content"). Copied actions stayed linked to the original block's variables, and a variable picked as the whole sample instead of its value. | Chose a payload format a Shortcut can build with plain text (`start\|end\|value\|unit` lines per metric, not nested JSON). Built and tested one metric end to end before copying the block. Rewrote the guide from real screenshots. | Design the API around the client's limits, and test one path end to end before scaling it out. |
+| 2026-10-08 | Two AI chats editing the same plan | A second chat opened a PR from an outdated view of the plan; it was declined. | Made `PLAN.md` in the repo the single source of truth, changed only through pull requests from one working session. | One source of truth, changes through review. |
+| 2026-10-08 | Messy health data | Designing ingestion surfaced several hazards: the iPhone and Watch both record the same night of sleep; temperatures arrive in °F or °C and lengths in ft or m; UTC dates put late-evening readings on the wrong day; and the Shortcut's rolling 3-day window cuts the oldest day in half. | Sleep is merged as a union of time intervals. Units are normalized, and an unknown unit is rejected rather than stored wrong. Each reading uses the phone's local date, with sleep counted toward the morning it ends. Every raw sample is stored once, and each day is recomputed from all samples, so a partial resend can't overwrite fuller data. Each case has a test. | Store raw facts and derive summaries; never let the latest upload overwrite history. |
+| 2026-10-08 | The data source needed a paid app | The plan relied on Health Auto Export's paid tier for automatic uploads. | Replaced it with a free iOS Shortcut (daily wellness data) plus the Strava API (workouts). The Shortcut runs when Instagram opens, because iOS only allows Health reads while the phone is unlocked, and resends 3 days so missed days fill themselves in. | Constraints drive design: a free path existed but needed idempotent ingestion to be reliable. |
+| 2026-10-08 | Deploying a monorepo on Railway | The backend lives in `backend/`, but Railway builds from the repo root, and Railway's docs and forum answers disagreed on whether the config-file path is relative to the root directory. | Set the service's root directory and the config-file path; wrote it up step by step in `docs/railway-setup.md`. | Write down the setup the moment it works. |
+
 ## Demo video script (about 75 seconds)
 
 Record a split screen: your phone (screen recording) on the left and the office in the browser on the right.
@@ -232,6 +252,7 @@ Expect roughly $7–10 for the month. These are approximate figures, so check cu
 
 - Built a cloud-hosted multi-agent system (Claude Agent SDK, FastAPI, Postgres on Railway) controlled through a Telegram bot, with a real-time Phaser visualizer streaming agent state over WebSockets.
 - Designed a daily Apple Watch + Strava data pipeline (iOS Shortcut push, Strava webhooks and OAuth, historical backfill, normalization, rolling 7/28-day baselines) plus tested recovery, strain, training-load and race-prediction models that drive an adaptive marathon plan.
+- Trained and cross-validated a scikit-learn marathon-time model on a public multi-runner dataset against Riegel and Daniels VDOT baselines (MAE reported honestly), and fit a personal pace-vs-heart-rate fitness model on Strava run segments.
 - Built a market-data ingestion job and risk-scoring model for trending tokens. Evaluated 30 days of flags against outcomes.
 
 Interviewers will ask why the LLM doesn't compute the score. "Deterministic math, LLM for language" is the answer that lands.
