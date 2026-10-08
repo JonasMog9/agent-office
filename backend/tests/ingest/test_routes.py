@@ -104,3 +104,18 @@ def test_bad_lines_are_reported_not_fatal(ingest_secret: str) -> None:
     body = response.json()
     assert response.status_code == 200
     assert (body["samples"], body["skipped_count"], body["unknown_fields"]) == (2, 1, ["steps"])
+
+
+@pytest.mark.usefixtures("db")
+def test_a_crash_is_explained_to_the_secret_holder(
+    ingest_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.ingest.routes as routes
+
+    def boom(*_args: object) -> None:
+        raise RuntimeError("relation health_samples does not exist\nmore detail")
+
+    monkeypatch.setattr(routes, "ingest_shortcut_payload", boom)
+    response = post(PAYLOAD, ingest_secret)
+    assert response.status_code == 500
+    assert response.json() == {"error": "RuntimeError: relation health_samples does not exist"}

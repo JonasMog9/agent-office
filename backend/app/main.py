@@ -29,9 +29,18 @@ app.include_router(ingest_router)
 
 @app.get("/health")
 def health(session: Annotated[Session, Depends(get_session)]) -> JSONResponse:
-    """Liveness plus a database round trip. Railway's healthcheck calls this on every deploy."""
+    """Liveness plus a database round trip. Railway's healthcheck calls this on every deploy.
+
+    ``migration`` is the Alembic revision the database is on, so a deploy whose migrations
+    didn't run is visible from a browser.
+    """
     try:
         session.execute(text("SELECT 1"))
     except SQLAlchemyError:
         return JSONResponse({"status": "error", "database": "unreachable"}, status_code=503)
-    return JSONResponse({"status": "ok", "database": "ok"})
+    try:
+        migration = session.scalar(text("SELECT version_num FROM alembic_version")) or "none"
+    except SQLAlchemyError:
+        session.rollback()
+        migration = "none"
+    return JSONResponse({"status": "ok", "database": "ok", "migration": migration})
