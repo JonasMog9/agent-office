@@ -29,19 +29,33 @@ Add these actions in order:
    - Add filter: **Start Date** · **is in the last** · **3 days**
    - Sort by: **Start Date**, Oldest First
    - Limit: off
-2. **Repeat with Each** (input: *Health Samples* from step 1)
-   1. **Format Date**: date = *Repeat Item → Start Date*. Format: **ISO 8601**, turn **Include ISO 8601 Time** on.
-   2. **Format Date**: date = *Repeat Item → End Date*. Same settings.
-   3. **Text**: build exactly this line, inserting the variables by tapping them:
-      `Formatted Date (1)` `|` `Formatted Date (2)` `|` `Repeat Item → Value` `|` `Repeat Item → Unit`
-      (the `|` is the vertical bar key, with no spaces around it)
+2. **Repeat with Each**. It should read *"Repeat with each item in Health Samples"*; if not, tap the blue word and pick **Health Samples**. It adds a matching **End Repeat**. The next three actions go **between** the two, indented. New actions often land at the bottom: hold and drag them up into the loop.
+   1. **Format Date**. Tap *Current Date* → **Repeat Item**, then tap the *Repeat Item* token → **Start Date**. Tap **›** (Show More): Date Format **ISO 8601**, turn on **Include ISO 8601 Time**.
+   2. **Format Date** again, the same way, but choose **End Date**.
+   3. **Text**. Tap in the box, then **Select Variable** in the row above the keyboard, and build this line with no spaces (the `|` is under **123 → #+=** on the iPhone keyboard):
+      first *Formatted Date* `|` second *Formatted Date* `|` *Repeat Item* → **Value** `|` *Repeat Item* → **Unit**
 3. *(End Repeat)*
-4. **Combine Text**: input = *Repeat Results*, combine with **New Lines**.
-5. Rename that *Combined Text* variable to **hrv**: long-press it → Rename. This makes the next steps easy to read.
+4. **Combine Text**, **below** End Repeat: input = **Repeat Results**, separator **New Lines**.
+5. **Set Variable**: name it `hrv`, input = *Combined Text*. (A named variable is much easier to pick in step 4 than ten actions all called "Combined Text".)
+
+The finished block:
+
+```
+Find Health Samples (Heart Rate Variability, last 3 days)
+Repeat with each item in Health Samples
+    Format Repeat Item's Start Date (ISO 8601)
+    Format Repeat Item's End Date (ISO 8601)
+    Text: Formatted Date|Formatted Date|Value|Unit
+End Repeat
+Combine Repeat Results with New Lines
+Set variable hrv to Combined Text
+```
+
+Test it before going on: add **Show Result** (*Combined Text*) and tap ▶. You should see lines like `2026-10-07T03:12:00-07:00|2026-10-07T03:13:00-07:00|52|ms`. Then delete the Show Result.
 
 ## 3. Duplicate for the other metrics
 
-Repeat steps 1–5 of the HRV block for each metric below, changing only the **Type** and the final variable name. Long-pressing an action → **Duplicate** copies it, which saves some tapping; rebuilding each block by hand works just as well.
+Repeat steps 1–5 of the HRV block for each metric below, changing only the **Type** and the **Set Variable** name. Long-pressing an action → **Duplicate** copies it, which saves some tapping; rebuilding each block by hand works just as well.
 
 | Health type in Shortcuts | Variable / JSON key | Notes |
 | --- | --- | --- |
@@ -64,7 +78,7 @@ If a type isn't offered on your phone, skip it; every metric is optional.
    - URL: `https://agent-office-production-d0e3.up.railway.app/ingest/health`
    - Show More → Method: **POST**
    - Headers: add `X-Ingest-Secret` = *your INGEST_SECRET*
-   - Request Body: **JSON**. Add one **Text** field per metric: key = the JSON key from the table, value = that metric's combined-text variable (`hrv`, `resting_hr`, ...).
+   - Request Body: **JSON**. Add one **Text** field per metric: key = the JSON key from the table, value = that metric's variable from Set Variable (`hrv`, `resting_hr`, ...).
 2. **Show Notification**: body = *Contents of URL*. Keep it while testing; remove it once things work if the pop-up gets annoying.
 
 ## 5. First run
