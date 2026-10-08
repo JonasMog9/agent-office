@@ -35,7 +35,7 @@ backend/
     telegram/        bot webhook handler and scheduled pushes
   tests/             pytest, mirrors app/
   Dockerfile
-  railway.json     Railway build/deploy config (migrations run pre-deploy, healthcheck on /health)
+  railway.json     Railway build/deploy config (healthcheck on /health; migrations run at container start)
   alembic.ini
   pyproject.toml
 frontend/            Vite + React + TS + Phaser office

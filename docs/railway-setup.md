@@ -5,7 +5,7 @@ One-time setup in the Railway dashboard. After this, every merge to `main` redep
 What the repo already does for you:
 
 - `backend/Dockerfile` builds the app and listens on Railway's `$PORT`.
-- `backend/railway.json` runs `alembic upgrade head` before each deploy (database migrations) and only switches traffic once `/health` answers.
+- The container runs `alembic upgrade head` (database migrations) every time it starts, before serving. `backend/railway.json` only switches traffic once `/health` answers. `/health` also reports the database's migration revision, so `"migration": "none"` means migrations didn't run.
 - `DATABASE_URL` from Railway's Postgres works as is; the app adds the driver name itself.
 
 ## 1. Create the project and database

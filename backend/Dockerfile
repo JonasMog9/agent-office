@@ -15,5 +15,6 @@ RUN useradd --create-home appuser
 USER appuser
 
 EXPOSE 8000
-# Railway sets $PORT; default to 8000 locally.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Apply database migrations, then serve. Alembic skips revisions already applied, so this is
+# safe on every start. Railway sets $PORT; default to 8000 locally.
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
