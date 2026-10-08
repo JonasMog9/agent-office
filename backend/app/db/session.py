@@ -1,4 +1,4 @@
-"""SQLAlchemy engine and session factory. Alembic is wired up in Phase 1."""
+"""SQLAlchemy engine and session factory. Migrations live in app/db/migrations (Alembic)."""
 
 from collections.abc import Iterator
 
