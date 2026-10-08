@@ -35,9 +35,11 @@ backend/
     telegram/        bot webhook handler and scheduled pushes
   tests/             pytest, mirrors app/
   Dockerfile
+  railway.json     Railway build/deploy config (migrations run pre-deploy, healthcheck on /health)
+  alembic.ini
   pyproject.toml
 frontend/            Vite + React + TS + Phaser office
-docs/                how-tos, e.g. building the iOS health-sync Shortcut
+docs/                how-tos: Railway setup, building the iOS health-sync Shortcut
 .github/workflows/   CI: ruff + pytest
 .env.example         every env var the app reads, with placeholder values
 PLAN.md

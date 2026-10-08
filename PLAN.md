@@ -1,6 +1,6 @@
 # Agent Office build plan
 
-Source of truth for what we're building and in what order. Tick boxes as phases land. The original, editable version lives in Claude Docs: https://claude.ai/code/artifact/4eaa61db-f0c5-419c-a599-a49562f1c4b1
+Source of truth for what we're building and in what order. Tick boxes as phases land. This file is the only copy that's kept up to date: change the plan here, through a pull request. (An older copy in Claude Docs is no longer maintained.)
 
 ## Goal
 
@@ -115,9 +115,9 @@ There are seven phases, and each ends with something working in the cloud. Do th
 ### Phase 0: Accounts and repo
 
 - [x] Create a public GitHub repo called `agent-office`.
-- [ ] Sign up for Railway (or Fly.io), get an Anthropic API key, and create a Telegram bot with @BotFather.
+- [x] Sign up for Railway (or Fly.io), get an Anthropic API key, and create a Telegram bot with @BotFather.
 - [ ] Install the Strava app, connect it to Apple Health so watch workouts sync to Strava automatically, and create a Strava API application (free) at strava.com/settings/api.
-- [ ] Make sure the Shortcuts app is on your iPhone (built in, free). The health-sync shortcut itself is built in Phase 2, once the endpoint exists.
+- [x] Make sure the Shortcuts app is on your iPhone (built in, free). The health-sync shortcut itself is built in Phase 2, once the endpoint exists.
 - [x] Write `CLAUDE.md`: the stack, the folder layout, "never commit secrets", and "write tests for scoring code".
 
 Claude Code prompt: `Scaffold a monorepo with backend/ (Python 3.12, FastAPI, SQLAlchemy, pytest) and frontend/ (Vite + React + TypeScript). Add a Dockerfile for the backend, a .env.example, and a GitHub Actions workflow that runs ruff and pytest.`
@@ -126,8 +126,8 @@ Done when CI is green on GitHub.
 
 ### Phase 1: Cloud skeleton
 
-- [ ] Deploy the FastAPI backend and a Postgres database on Railway.
-- [ ] Add a `/health` endpoint and set the secrets as environment variables.
+- [ ] Deploy the FastAPI backend and a Postgres database on Railway, following [docs/railway-setup.md](docs/railway-setup.md).
+- [ ] Add a `/health` endpoint (checks the database too) and set the secrets as environment variables.
 
 Claude Code prompt: `Add a railway.json and wire DATABASE_URL into SQLAlchemy with Alembic migrations. Add a /health endpoint.`
 
@@ -137,7 +137,7 @@ Done when the live URL returns OK.
 
 - [ ] Add a `POST /ingest/health` endpoint protected by a secret header. It accepts our own simple JSON format (one entry per day per metric) and upserts by date, so resending the last 3 days is safe.
 - [ ] Build the iOS Shortcut that sends the last 3 days of HRV, resting HR, respiratory rate, wrist temperature, sleep, active energy, VO2max and running-form metrics to the endpoint. Add a personal automation: **When Instagram is opened → run it, with "Ask Before Running" off**, and skip if it already sent today. Write the step-by-step build in `docs/health-shortcut.md`.
-- [ ] Add Strava: OAuth for your account (refresh token stored as a secret), a `/strava/webhook` route (subscription check plus activity events, accepting only your athlete ID), and fetching each new activity's summary and HR, pace and cadence streams into `workouts`.
+- [ ] Add Strava: OAuth for your account (refresh token stored as a secret), a `/strava/webhook` route (subscription check plus activity events, accepting only your athlete ID), access tokens refreshed as they expire (every 6 hours), and each new refresh token Strava rotates in saved to the database, since the env var only holds the first one, and fetching each new activity's summary and HR, pace and cadence streams into `workouts`.
 - [ ] Backfill: a one-off script that imports Apple Health's `export.xml` into `daily_metrics`, and one that pulls your past Strava activities, so the 60-day baselines exist from day one.
 - [ ] Store raw payloads, then parse them into a clean `daily_metrics` table (HRV, resting heart rate, respiratory rate, temperature, sleep, active energy, VO2max) and a `workouts` table (from Strava).
 - [ ] Write the recovery, strain and sleep scores as plain Python functions (see the Health Coach section). Each one returns a number plus the reasons behind it.

@@ -3,10 +3,17 @@
 Routes for /ingest/health, /strava/webhook, /telegram and /ws/events land in later phases.
 """
 
-from fastapi import FastAPI
+from typing import Annotated
+
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.db.session import get_session
 
 app = FastAPI(title="Agent Office")
 
@@ -19,5 +26,10 @@ app.add_middleware(
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health(session: Annotated[Session, Depends(get_session)]) -> JSONResponse:
+    """Liveness plus a database round trip. Railway's healthcheck calls this on every deploy."""
+    try:
+        session.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return JSONResponse({"status": "error", "database": "unreachable"}, status_code=503)
+    return JSONResponse({"status": "ok", "database": "ok"})
