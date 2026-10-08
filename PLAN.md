@@ -126,12 +126,12 @@ Done when CI is green on GitHub.
 
 ### Phase 1: Cloud skeleton
 
-- [ ] Deploy the FastAPI backend and a Postgres database on Railway, following [docs/railway-setup.md](docs/railway-setup.md).
-- [ ] Add a `/health` endpoint (checks the database too) and set the secrets as environment variables.
+- [x] Deploy the FastAPI backend and a Postgres database on Railway, following [docs/railway-setup.md](docs/railway-setup.md).
+- [x] Add a `/health` endpoint (checks the database too) and set the secrets as environment variables.
 
 Claude Code prompt: `Add a railway.json and wire DATABASE_URL into SQLAlchemy with Alembic migrations. Add a /health endpoint.`
 
-Done when the live URL returns OK.
+Done when the live URL returns OK. ✅ Live at https://agent-office-production-d0e3.up.railway.app/health
 
 ### Phase 2: Health data pipeline (the resume core)
 
