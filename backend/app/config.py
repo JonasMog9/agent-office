@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     telegram_owner_user_id: int = 0
     telegram_webhook_secret: str = ""
     ingest_secret: str = ""
+    strava_client_id: str = ""
+    strava_client_secret: str = ""
+    strava_refresh_token: str = ""
+    strava_athlete_id: int = 0
+    strava_webhook_verify_token: str = ""
     cors_origins: str = "http://localhost:5173"
 
 

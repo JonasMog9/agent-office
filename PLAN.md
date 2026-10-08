@@ -18,19 +18,22 @@ Profit isn't the goal. The goal is a project a hiring manager can watch in 90 se
 
 ## Architecture and stack
 
-One Python backend on Railway runs all three agents. Your phone only pushes health data and chats over Telegram, and the pixel office is a separate web page that listens to agent events.
+One Python backend on Railway runs all three agents. Your phone pushes daily health data through a free iOS Shortcut and chats over Telegram, Strava sends each run to the backend as soon as it syncs, and the pixel office is a separate web page that listens to agent events.
 
 ```
- iPhone                         Railway (one Python backend)                  Browser
- ┌───────────────────┐         ┌───────────────────────────────────────┐     ┌──────────────────┐
- │ Health Auto Export│──POST──▶│ FastAPI  /ingest/health                │     │ Pixel office     │
- │ Telegram app      │◀──────▶│          /telegram (webhook)           │     │ Phaser 3 + React │
- └───────────────────┘         │          /ws/events ──────────────────────▶│ (Vercel)         │
-                               │                                        │     └──────────────────┘
-                               │ Manager ─▶ Health Coach / Market Scout │
-                               │ (Claude Agent SDK)   │ event bus       │
-                               │ Postgres: health · tokens · events     │
-                               └───────────────────────────────────────┘
+ iPhone                        Railway (one Python backend)                    Browser
+ ┌──────────────────────┐      ┌─────────────────────────────────────────┐
+ │ iOS Shortcut         │─POST▶│ FastAPI  /ingest/health                 │
+ │ (on Instagram open)  │      │                                         │     ┌──────────────────┐
+ │ Telegram app         │◀────▶│          /telegram (webhook)            │     │ Pixel office     │
+ └──────────────────────┘      │          /ws/events ─────────────────────│────▶│ Phaser 3 + React │
+ ┌──────────────────────┐      │                                         │     │ (Vercel)         │
+ │ Strava               │─POST▶│          /strava/webhook                │     └──────────────────┘
+ └──────────────────────┘      │                                         │
+                               │ Manager ─▶ Health Coach / Market Scout  │
+                               │ (Claude Agent SDK)   │ event bus        │
+                               │ Postgres: health · tokens · events      │
+                               └─────────────────────────────────────────┘
 ```
 
 Every agent step is saved as an event, and the office replays those events as animations. That's why the video can show the Manager walking to the Coach at the exact moment the delegation happens.
@@ -66,16 +69,16 @@ Rules for it:
 
 The Health Coach covers what Whoop and Garmin give you (recovery, strain, sleep, training load, race predictions), plus an adaptive marathon plan and a coach you can chat with. Every number is computed in Python from your own data, and Claude explains it and answers your questions. The scores are approximations of the commercial ones: Whoop's and Garmin's exact formulas aren't public.
 
-| Feature | What you get | Apple Health data it uses | How it's computed |
+| Feature | What you get | Data it uses (source) | How it's computed |
 | --- | --- | --- | --- |
-| Recovery (0–100%) | Green, yellow, or red each morning | HRV (SDNN), resting HR, respiratory rate, wrist temperature, sleep | z-scores vs. your 60-day baseline, weighted into one score |
-| Strain (0–21) | How hard today was, all activity included | Workout and all-day heart rate | Daily TRIMP, mapped onto a log 0–21 scale like Whoop's |
-| Sleep coach | Sleep need tonight, sleep debt, consistency | Sleep stages, in-bed times | Baseline need + extra for strain + debt from the last 7 nights |
-| Training load and form | Fitness, fatigue and form trend, plus an overtraining flag | Workouts (duration, HR, distance) | CTL (42-day) and ATL (7-day) averages of TRIMP. Form = CTL − ATL. ACWR = 7-day / 28-day load |
-| HR and pace zones | Your personal zones | Max HR, resting HR, recent runs | Karvonen (heart-rate reserve) zones, and pace zones from your VDOT |
-| Race time predictions | 5K, 10K, half and marathon estimates, with a range and a trend line | Best recent efforts, VO2max estimate, weekly mileage | Daniels VDOT from your best efforts, Riegel scaling, and Apple's VO2max as a cross-check. Marathon adjusted down if your mileage is low |
+| Recovery (0–100%) | Green, yellow, or red each morning | HRV (SDNN), resting HR, respiratory rate, wrist temperature, sleep (Shortcut) | z-scores vs. your 60-day baseline, weighted into one score |
+| Strain (0–21) | How hard today was, all activity included | Workout heart rate streams (Strava), plus daily active energy (Shortcut) | Daily TRIMP, mapped onto a log 0–21 scale like Whoop's |
+| Sleep coach | Sleep need tonight, sleep debt, consistency | Sleep stages, in-bed times (Shortcut) | Baseline need + extra for strain + debt from the last 7 nights |
+| Training load and form | Fitness, fatigue and form trend, plus an overtraining flag | Workouts: duration, HR, distance (Strava) | CTL (42-day) and ATL (7-day) averages of TRIMP. Form = CTL − ATL. ACWR = 7-day / 28-day load |
+| HR and pace zones | Your personal zones | Max HR, resting HR (Shortcut), recent runs (Strava) | Karvonen (heart-rate reserve) zones, and pace zones from your VDOT |
+| Race time predictions | 5K, 10K, half and marathon estimates, with a range and a trend line | Best recent efforts and weekly mileage (Strava), VO2max estimate (Shortcut) | Daniels VDOT from your best efforts, Riegel scaling, and Apple's VO2max as a cross-check. Marathon adjusted down if your mileage is low |
 | Adaptive training plan | A plan to a goal race and date that reshuffles daily | Everything above | Base, build, peak and taper blocks. Weekly mileage up ≤10%. Hard days swapped for easy ones when recovery is red |
-| Running form | Trends and alerts on running form | Cadence, ground contact time, vertical oscillation, stride length, running power | Rolling averages per pace band. Flags sudden changes |
+| Running form | Trends and alerts on running form | Cadence and power streams (Strava); ground contact time, vertical oscillation, stride length (Shortcut) | Rolling averages per pace band. Flags sudden changes |
 | Early warnings | "You might be getting sick" or "injury risk is up" | Resting HR, HRV, temperature, ACWR | Rules, e.g. RHR +5 bpm and HRV down 20% for 2 days, or ACWR above 1.5 |
 | Weekly report | A Sunday summary in Telegram and on the stats page | All of it | Claude writes it from the computed metrics |
 
@@ -94,7 +97,12 @@ The first is Riegel's race predictor: a time T1 over distance D1 predicts a time
 Things to know about the data:
 
 - Apple Watch records HRV as SDNN, while Whoop uses RMSSD. Compare against your own baseline only, never against Whoop's numbers.
-- Health Auto Export sends workout summaries and heart rate samples. For per-split run detail, optionally add the Strava API as a second source.
+- Two free sources, each owning different data:
+  - **iOS Shortcut** → `POST /ingest/health`: daily wellness (HRV, resting HR, respiratory rate, wrist temperature, sleep, active energy, VO2max, Apple's running-form metrics). A personal automation runs it **when you open Instagram**, because iOS locks Health data while the phone is locked and an app opening means it's unlocked. The shortcut sends only once a day and always sends the **last 3 days**, so a missed day fills itself in. The backend upserts by date, so repeats never duplicate.
+  - **Strava API** → `/strava/webhook`: every run (and other HR workouts) with second-by-second heart rate, pace, cadence and splits. Strava calls the backend when an activity syncs from the watch, so no phone step is needed. It's the source of truth for workouts; the Shortcut doesn't send them, which avoids double counting.
+- **Backfill on day one.** Recovery needs a 60-day baseline. Instead of waiting weeks, import Apple Health's full export once (Health app → profile → Export All Health Data → `export.xml`) and pull past activities from the Strava API.
+- **Keep the phone passcode on.** It's what encrypts Health data on the device; the Instagram trigger already solves the locked-phone problem.
+- Strava's API terms (tightened in late 2024) limit how Strava data can be shown to others and used with AI. Using your own data for your own coach is the normal case, but re-read the terms before putting Strava-derived charts in the public demo or stats page.
 - Race predictions need at least one hard effort (a race or time trial) in the last 6–8 weeks to be useful. Before there is one, the coach falls back to the VO2max estimate and says it's less certain.
 - Show how good the predictions are: log every prediction and compare it with real race results. That's a great chart for the README.
 
@@ -108,7 +116,8 @@ There are seven phases, and each ends with something working in the cloud. Do th
 
 - [x] Create a public GitHub repo called `agent-office`.
 - [ ] Sign up for Railway (or Fly.io), get an Anthropic API key, and create a Telegram bot with @BotFather.
-- [ ] Buy Health Auto Export on your iPhone. The REST API automation feature needs its premium tier.
+- [ ] Install the Strava app, connect it to Apple Health so watch workouts sync to Strava automatically, and create a Strava API application (free) at strava.com/settings/api.
+- [ ] Make sure the Shortcuts app is on your iPhone (built in, free). The health-sync shortcut itself is built in Phase 2, once the endpoint exists.
 - [x] Write `CLAUDE.md`: the stack, the folder layout, "never commit secrets", and "write tests for scoring code".
 
 Claude Code prompt: `Scaffold a monorepo with backend/ (Python 3.12, FastAPI, SQLAlchemy, pytest) and frontend/ (Vite + React + TypeScript). Add a Dockerfile for the backend, a .env.example, and a GitHub Actions workflow that runs ruff and pytest.`
@@ -126,14 +135,17 @@ Done when the live URL returns OK.
 
 ### Phase 2: Health data pipeline (the resume core)
 
-- [ ] Add a `POST /ingest/health` endpoint protected by a secret header, and point Health Auto Export at it (daily, JSON).
-- [ ] Store raw payloads, then parse them into a clean `daily_metrics` table: HRV, resting heart rate, sleep duration, active energy, workouts.
+- [ ] Add a `POST /ingest/health` endpoint protected by a secret header. It accepts our own simple JSON format (one entry per day per metric) and upserts by date, so resending the last 3 days is safe.
+- [ ] Build the iOS Shortcut that sends the last 3 days of HRV, resting HR, respiratory rate, wrist temperature, sleep, active energy, VO2max and running-form metrics to the endpoint. Add a personal automation: **When Instagram is opened → run it, with "Ask Before Running" off**, and skip if it already sent today. Write the step-by-step build in `docs/health-shortcut.md`.
+- [ ] Add Strava: OAuth for your account (refresh token stored as a secret), a `/strava/webhook` route (subscription check plus activity events, accepting only your athlete ID), and fetching each new activity's summary and HR, pace and cadence streams into `workouts`.
+- [ ] Backfill: a one-off script that imports Apple Health's `export.xml` into `daily_metrics`, and one that pulls your past Strava activities, so the 60-day baselines exist from day one.
+- [ ] Store raw payloads, then parse them into a clean `daily_metrics` table (HRV, resting heart rate, respiratory rate, temperature, sleep, active energy, VO2max) and a `workouts` table (from Strava).
 - [ ] Write the recovery, strain and sleep scores as plain Python functions (see the Health Coach section). Each one returns a number plus the reasons behind it.
 - [ ] Unit-test every score with hand-made data, including missing days and outliers.
 
-Claude Code prompt: `/plan Build the health ingestion endpoint and a metrics package. Store raw JSON, normalize into daily_metrics and workouts tables, and implement recovery (z-scores vs. 60-day baselines), strain (TRIMP mapped to 0-21) and sleep need and debt, each returning a score with a component breakdown. Include pytest cases for missing days and outliers.`
+Claude Code prompt: `/plan Build the health ingestion endpoint (our own JSON format from an iOS Shortcut, upsert by date), Strava OAuth plus a webhook that pulls new activities and their HR streams, and backfill scripts for Apple Health's export.xml and past Strava activities. Add a metrics package. Store raw JSON, normalize into daily_metrics and workouts tables, and implement recovery (z-scores vs. 60-day baselines), strain (TRIMP mapped to 0-21) and sleep need and debt, each returning a score with a component breakdown. Include pytest cases for missing days and outliers.`
 
-Done when real Apple Watch data shows up and the recovery, strain and sleep numbers look sane for a week.
+Done when the Instagram-triggered shortcut and Strava both land real data every day for a week, the backfill fills the last 60+ days, and the recovery, strain and sleep numbers look sane.
 
 ### Phase 2b: Running coach engine
 
@@ -142,7 +154,6 @@ Done when real Apple Watch data shows up and the recovery, strain and sleep numb
 - [ ] Race predictor: VDOT from best recent efforts, Riegel scaling, the VO2max cross-check, and a mileage adjustment for the marathon. Log every prediction to a `predictions` table.
 - [ ] Plan generator: goal race + date → base, build, peak and taper weeks. Each morning it adjusts the day's workout using recovery and ACWR.
 - [ ] Running form trends and early-warning rules (possible illness, injury risk).
-- [ ] Optional: pull detailed runs from the Strava API.
 
 Claude Code prompt: `/plan Add a coach package: TRIMP-based CTL/ATL/TSB and ACWR, Karvonen HR zones, a race predictor combining Daniels VDOT, Riegel and the Apple VO2max estimate with a low-mileage marathon adjustment, and a periodized plan generator that adapts the next workout to recovery. Pure functions with pytest tests against known VDOT tables.`
 
@@ -205,14 +216,14 @@ Tips: record with real data, keep captions on screen (most people watch muted), 
 
 ## Costs, timeline and resume framing
 
-Expect roughly $10–15 for the month. These are approximate figures, so check current pricing when signing up.
+Expect roughly $7–10 for the month. These are approximate figures, so check current pricing when signing up.
 
 | Item | Approx. cost / month | Notes |
 | --- | --- | --- |
 | Railway Hobby (backend + Postgres) | ~$5 | Fly.io is similar |
 | Claude API | ~$2–5 | Haiku for routing, Sonnet for the Coach, a few calls a day |
-| Health Auto Export premium | a few dollars | Needed for the REST API automation |
 | Vercel (frontend) | $0 | Free hobby tier |
+| iOS Shortcuts, Strava API | $0 | Shortcuts is built into iOS; Strava's API is free for personal use |
 | Telegram, DexScreener, CoinGecko | $0 | Free APIs |
 
 **Timeline.** Part-time, plan on about 4–6 weeks to build, then the month of running and recording. Phases 2 and 5 are the biggest. Start collecting health data in Phase 2 as early as possible, because the baselines need a few weeks of history.
@@ -220,7 +231,7 @@ Expect roughly $10–15 for the month. These are approximate figures, so check c
 **Resume bullets (once it's built):**
 
 - Built a cloud-hosted multi-agent system (Claude Agent SDK, FastAPI, Postgres on Railway) controlled through a Telegram bot, with a real-time Phaser visualizer streaming agent state over WebSockets.
-- Designed a daily Apple Watch data pipeline (webhook ingestion, normalization, rolling 7/28-day baselines) plus tested recovery, strain, training-load and race-prediction models that drive an adaptive marathon plan.
+- Designed a daily Apple Watch + Strava data pipeline (iOS Shortcut push, Strava webhooks and OAuth, historical backfill, normalization, rolling 7/28-day baselines) plus tested recovery, strain, training-load and race-prediction models that drive an adaptive marathon plan.
 - Built a market-data ingestion job and risk-scoring model for trending tokens. Evaluated 30 days of flags against outcomes.
 
 Interviewers will ask why the LLM doesn't compute the score. "Deterministic math, LLM for language" is the answer that lands.
