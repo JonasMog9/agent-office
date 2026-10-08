@@ -20,42 +20,46 @@ You'll need:
 
 Shortcuts app → **+** → name it **Health Sync**.
 
-## 2. The HRV block (the template for every metric)
+## 2. One block per metric (HRV as the example)
 
-Add these actions in order:
+Each metric is one block of 6 actions. All blocks live in the **same** Shortcut, stacked one above the other, with the single send step (section 4) at the very bottom. Add each action from the search bar and drag it **above Get Contents of URL** if it lands below.
 
 1. **Find Health Samples**
    - Type: **Heart Rate Variability**
    - Add filter: **Start Date** · **is in the last** · **3 days**
    - Sort by: **Start Date**, Oldest First
    - Limit: off
-2. **Repeat with Each**. It should read *"Repeat with each item in Health Samples"*; if not, tap the blue word and pick **Health Samples**. It adds a matching **End Repeat**. The next three actions go **between** the two, indented. New actions often land at the bottom: hold and drag them up into the loop.
-   1. **Format Date**. Tap *Current Date* → **Repeat Item**, then tap the *Repeat Item* token → **Start Date**. Tap **›** (Show More): Date Format **ISO 8601**, turn on **Include ISO 8601 Time**.
-   2. **Format Date** again, the same way, but choose **End Date**.
-   3. **Text**. Tap in the box, then **Select Variable** in the row above the keyboard, and build this line with no spaces (the `|` is under **123 → #+=** on the iPhone keyboard):
-      first *Formatted Date* `|` second *Formatted Date* `|` *Repeat Item* → **Value** `|` *Repeat Item* → **Unit**
-3. *(End Repeat)*
-4. **Combine Text**, **below** End Repeat: input = **Repeat Results**, separator **New Lines**.
-5. **Set Variable**: name it `hrv`, input = *Combined Text*. (A named variable is much easier to pick in step 4 than ten actions all called "Combined Text".)
+2. **Repeat with Each**. It should read *"Repeat with each item in Health Samples"*, the Health Samples from step 1; if not, tap the blue word and pick it. A matching **End Repeat** appears. The Text action goes **between** the two, indented.
+3. **Text**, inside the loop. Tap in the box, insert tokens from the variable row above the keyboard, and type `|` between them (no spaces; `|` is under **123 → #+=**):
+   - **Repeat Item** → tap the token → **Start Date**. In that same popup check **Date Format: ISO 8601** and **ISO 8601 Time: on**.
+   - `|`
+   - **Repeat Item** → **End Date**, with the same ISO 8601 settings.
+   - `|`
+   - **Repeat Item** → **Value**
+   - `|`
+   - **Repeat Item** → **Unit**
+4. *(End Repeat)*
+5. **Combine Text**, **below** End Repeat: input = **Repeat Results**, separator **New Lines**.
+6. **Set Variable**: name it `hrv`, input = *Combined Text*.
 
 The finished block:
 
 ```
 Find Health Samples (Heart Rate Variability, last 3 days)
 Repeat with each item in Health Samples
-    Format Repeat Item's Start Date (ISO 8601)
-    Format Repeat Item's End Date (ISO 8601)
-    Text: Formatted Date|Formatted Date|Value|Unit
+    Text: Start Date|End Date|Value|Unit      (dates: ISO 8601 + time)
 End Repeat
 Combine Repeat Results with New Lines
 Set variable hrv to Combined Text
 ```
 
-Test it before going on: add **Show Result** (*Combined Text*) and tap ▶. You should see lines like `2026-10-07T03:12:00-07:00|2026-10-07T03:13:00-07:00|52|ms`. Then delete the Show Result.
+Test each new block before going on: add **Show Content** (the new variable) and tap ▶. You should see **one line per sample with exactly four parts**, like `2026-10-07T03:12:00-07:00|2026-10-07T03:13:00-07:00|52|ms`. Then delete the Show Content.
+
+> Avoid the **Format Date** action here. A new Format Date defaults to **Date Format: Short**, which overrides the token's ISO 8601 setting and produces `2026-10-05, 12:00 PM`. Given a whole sample instead of one of its dates, it also prints several dates on separate lines. Formatting the date tokens inside the Text action has neither problem. (A block that already uses Format Date with ISO 8601 and the right Start Date/End Date inputs works fine; leave it.)
 
 ## 3. Duplicate for the other metrics
 
-Repeat steps 1–5 of the HRV block for each metric below, changing only the **Type** and the **Set Variable** name. Long-pressing an action → **Duplicate** copies it, which saves some tapping; rebuilding each block by hand works just as well.
+Build a new block (steps 1–6) for each metric below, changing only the **Type** and the **Set Variable** name. Build each one fresh rather than duplicating: copied actions stay linked to the original block's variables, so a copy silently sends the original metric's data.
 
 | Health type in Shortcuts | Variable / JSON key | Notes |
 | --- | --- | --- |
