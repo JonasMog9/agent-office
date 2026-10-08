@@ -1,0 +1,226 @@
+# Agent Office build plan
+
+Source of truth for what we're building and in what order. Tick boxes as phases land. The original, editable version lives in Claude Docs: https://claude.ai/code/artifact/4eaa61db-f0c5-419c-a599-a49562f1c4b1
+
+## Goal
+
+Build a cloud-hosted team of three AI agents you control from Telegram, shown live as pixel characters in a 2D office. Then record a 60–90 second demo video and run it for about a month.
+
+The finished demo: you text "How ready am I to train today?". The Manager character stands up, walks to the Health Coach's desk with a speech bubble, the coach types, and your phone buzzes with a readiness score and today's workout call. The Market Scout posts its daily brief in the same office.
+
+The team:
+
+- **Manager**: reads your Telegram message, decides who handles it, delegates, and replies to you.
+- **Health Coach**: a Whoop/Garmin-style running coach. It tracks recovery, strain, sleep and training load, predicts your race times, and adapts your marathon plan daily. It computes every number in Python and uses Claude to explain them.
+- **Market Scout** (optional third agent, see below): scans trending meme coins once a day, flags risk signals, and writes a short brief. It never trades.
+
+Profit isn't the goal. The goal is a project a hiring manager can watch in 90 seconds and then dig into on GitHub.
+
+## Architecture and stack
+
+One Python backend on Railway runs all three agents. Your phone only pushes health data and chats over Telegram, and the pixel office is a separate web page that listens to agent events.
+
+```
+ iPhone                         Railway (one Python backend)                  Browser
+ ┌───────────────────┐         ┌───────────────────────────────────────┐     ┌──────────────────┐
+ │ Health Auto Export│──POST──▶│ FastAPI  /ingest/health                │     │ Pixel office     │
+ │ Telegram app      │◀──────▶│          /telegram (webhook)           │     │ Phaser 3 + React │
+ └───────────────────┘         │          /ws/events ──────────────────────▶│ (Vercel)         │
+                               │                                        │     └──────────────────┘
+                               │ Manager ─▶ Health Coach / Market Scout │
+                               │ (Claude Agent SDK)   │ event bus       │
+                               │ Postgres: health · tokens · events     │
+                               └───────────────────────────────────────┘
+```
+
+Every agent step is saved as an event, and the office replays those events as animations. That's why the video can show the Manager walking to the Coach at the exact moment the delegation happens.
+
+| Layer | Choice | Why |
+| --- | --- | --- |
+| Agents | Claude Agent SDK (Python) | Native subagents and hooks, no extra framework to learn |
+| API | FastAPI | Async, WebSockets built in, standard on resumes |
+| Database | Postgres | Health history, token snapshots, event log |
+| Chat | python-telegram-bot (webhook mode) | Doesn't need to poll, so it works on cheap hosting |
+| Office | Phaser 3 + React (Vite) on Vercel | A real 2D game engine, free hosting |
+| Hosting | Railway (Docker) | Simple deploys from GitHub, cron jobs, Postgres included |
+
+## Should you add a meme coin / NFT scanner?
+
+Yes, but only for meme coins, and only as a read-only scout that never trades. Add it as the third agent instead of the Etsy bot.
+
+Why it beats Etsy for this goal:
+
+- **It's a real data-engineering job.** A daily ingestion job against public market data, snapshots in Postgres, computed features (24h volume change, liquidity, token age, buy/sell ratio), and a score. Same skill set as the health pipeline, applied to a second domain.
+- **It's free and needs no approvals.** DexScreener and CoinGecko both have free public APIs. Etsy needs approved API access, paid listings, and Printify setup.
+- **It looks great on video.** The Scout walks to a wall of charts every morning, and the brief lands in Telegram.
+- **One month of history is enough.** End with a short "what the Scout flagged vs. what happened" analysis, a strong closing slide for the README.
+
+Rules for it:
+
+- No wallet, no exchange keys, no buy/sell actions. It reports and nothing else.
+- Score tokens with code (rules or a simple model), and let Claude write the summary.
+- Put a "not financial advice" line on every brief.
+- Skip NFTs. The NFT market has much thinner volume and worse data access, so meme coins give you more to work with.
+
+## Health Coach: a Whoop/Garmin-style running coach
+
+The Health Coach covers what Whoop and Garmin give you (recovery, strain, sleep, training load, race predictions), plus an adaptive marathon plan and a coach you can chat with. Every number is computed in Python from your own data, and Claude explains it and answers your questions. The scores are approximations of the commercial ones: Whoop's and Garmin's exact formulas aren't public.
+
+| Feature | What you get | Apple Health data it uses | How it's computed |
+| --- | --- | --- | --- |
+| Recovery (0–100%) | Green, yellow, or red each morning | HRV (SDNN), resting HR, respiratory rate, wrist temperature, sleep | z-scores vs. your 60-day baseline, weighted into one score |
+| Strain (0–21) | How hard today was, all activity included | Workout and all-day heart rate | Daily TRIMP, mapped onto a log 0–21 scale like Whoop's |
+| Sleep coach | Sleep need tonight, sleep debt, consistency | Sleep stages, in-bed times | Baseline need + extra for strain + debt from the last 7 nights |
+| Training load and form | Fitness, fatigue and form trend, plus an overtraining flag | Workouts (duration, HR, distance) | CTL (42-day) and ATL (7-day) averages of TRIMP. Form = CTL − ATL. ACWR = 7-day / 28-day load |
+| HR and pace zones | Your personal zones | Max HR, resting HR, recent runs | Karvonen (heart-rate reserve) zones, and pace zones from your VDOT |
+| Race time predictions | 5K, 10K, half and marathon estimates, with a range and a trend line | Best recent efforts, VO2max estimate, weekly mileage | Daniels VDOT from your best efforts, Riegel scaling, and Apple's VO2max as a cross-check. Marathon adjusted down if your mileage is low |
+| Adaptive training plan | A plan to a goal race and date that reshuffles daily | Everything above | Base, build, peak and taper blocks. Weekly mileage up ≤10%. Hard days swapped for easy ones when recovery is red |
+| Running form | Trends and alerts on running form | Cadence, ground contact time, vertical oscillation, stride length, running power | Rolling averages per pace band. Flags sudden changes |
+| Early warnings | "You might be getting sick" or "injury risk is up" | Resting HR, HRV, temperature, ACWR | Rules, e.g. RHR +5 bpm and HRV down 20% for 2 days, or ACWR above 1.5 |
+| Weekly report | A Sunday summary in Telegram and on the stats page | All of it | Claude writes it from the computed metrics |
+
+The two core formulas:
+
+```math
+T_2 = T_1 \times \left(\frac{D_2}{D_1}\right)^{1.06}
+```
+
+```math
+\mathrm{CTL}_t = \mathrm{CTL}_{t-1} + \frac{\mathrm{TRIMP}_t - \mathrm{CTL}_{t-1}}{42}
+```
+
+The first is Riegel's race predictor: a time T1 over distance D1 predicts a time T2 over distance D2. ATL works the same way as CTL with 7 instead of 42.
+
+Things to know about the data:
+
+- Apple Watch records HRV as SDNN, while Whoop uses RMSSD. Compare against your own baseline only, never against Whoop's numbers.
+- Health Auto Export sends workout summaries and heart rate samples. For per-split run detail, optionally add the Strava API as a second source.
+- Race predictions need at least one hard effort (a race or time trial) in the last 6–8 weeks to be useful. Before there is one, the coach falls back to the VO2max estimate and says it's less certain.
+- Show how good the predictions are: log every prediction and compare it with real race results. That's a great chart for the README.
+
+What to say to it in Telegram: "How recovered am I?", "What should I run today?", "Predict my marathon", "Build me a plan for a sub-3:30 on April 12", "Why was my strain so high yesterday?".
+
+## Build phases
+
+There are seven phases, and each ends with something working in the cloud. Do them in order: every phase builds on the one before.
+
+### Phase 0: Accounts and repo
+
+- [x] Create a public GitHub repo called `agent-office`.
+- [ ] Sign up for Railway (or Fly.io), get an Anthropic API key, and create a Telegram bot with @BotFather.
+- [ ] Buy Health Auto Export on your iPhone. The REST API automation feature needs its premium tier.
+- [x] Write `CLAUDE.md`: the stack, the folder layout, "never commit secrets", and "write tests for scoring code".
+
+Claude Code prompt: `Scaffold a monorepo with backend/ (Python 3.12, FastAPI, SQLAlchemy, pytest) and frontend/ (Vite + React + TypeScript). Add a Dockerfile for the backend, a .env.example, and a GitHub Actions workflow that runs ruff and pytest.`
+
+Done when CI is green on GitHub.
+
+### Phase 1: Cloud skeleton
+
+- [ ] Deploy the FastAPI backend and a Postgres database on Railway.
+- [ ] Add a `/health` endpoint and set the secrets as environment variables.
+
+Claude Code prompt: `Add a railway.json and wire DATABASE_URL into SQLAlchemy with Alembic migrations. Add a /health endpoint.`
+
+Done when the live URL returns OK.
+
+### Phase 2: Health data pipeline (the resume core)
+
+- [ ] Add a `POST /ingest/health` endpoint protected by a secret header, and point Health Auto Export at it (daily, JSON).
+- [ ] Store raw payloads, then parse them into a clean `daily_metrics` table: HRV, resting heart rate, sleep duration, active energy, workouts.
+- [ ] Write the recovery, strain and sleep scores as plain Python functions (see the Health Coach section). Each one returns a number plus the reasons behind it.
+- [ ] Unit-test every score with hand-made data, including missing days and outliers.
+
+Claude Code prompt: `/plan Build the health ingestion endpoint and a metrics package. Store raw JSON, normalize into daily_metrics and workouts tables, and implement recovery (z-scores vs. 60-day baselines), strain (TRIMP mapped to 0-21) and sleep need and debt, each returning a score with a component breakdown. Include pytest cases for missing days and outliers.`
+
+Done when real Apple Watch data shows up and the recovery, strain and sleep numbers look sane for a week.
+
+### Phase 2b: Running coach engine
+
+- [ ] Training load: daily TRIMP, CTL/ATL/form, and ACWR, with overtraining and injury-risk flags.
+- [ ] HR zones (Karvonen) and pace zones from VDOT.
+- [ ] Race predictor: VDOT from best recent efforts, Riegel scaling, the VO2max cross-check, and a mileage adjustment for the marathon. Log every prediction to a `predictions` table.
+- [ ] Plan generator: goal race + date → base, build, peak and taper weeks. Each morning it adjusts the day's workout using recovery and ACWR.
+- [ ] Running form trends and early-warning rules (possible illness, injury risk).
+- [ ] Optional: pull detailed runs from the Strava API.
+
+Claude Code prompt: `/plan Add a coach package: TRIMP-based CTL/ATL/TSB and ACWR, Karvonen HR zones, a race predictor combining Daniels VDOT, Riegel and the Apple VO2max estimate with a low-mileage marathon adjustment, and a periodized plan generator that adapts the next workout to recovery. Pure functions with pytest tests against known VDOT tables.`
+
+Done when "Predict my marathon" gives a sensible range and a 12-week plan generates and adapts to a red recovery day.
+
+### Phase 3: Agents (Claude Agent SDK)
+
+- [ ] Health Coach agent with tools `get_recovery, get_strain, get_sleep, get_training_load, predict_race, get_plan` and `adjust_plan`. It explains the numbers, prescribes today's run, and answers coaching questions, but it never invents a number.
+- [ ] Manager agent with one tool per worker (`ask_health_coach`, `ask_market_scout`). Use Haiku for the Manager and Sonnet for the Coach.
+- [ ] Every agent step writes an event: `{agent, status: idle|thinking|walking|working|talking, target, text}`.
+
+Claude Code prompt: `Using the Claude Agent SDK, create a Manager agent that delegates to a Health Coach subagent via tools. Emit an event to an in-process event bus on every agent start, tool call, handoff and finish.`
+
+Done when a test script asks the Manager a question and gets a correct answer plus a clean event log.
+
+### Phase 4: Telegram manager
+
+- [ ] Use python-telegram-bot in webhook mode on the same FastAPI app. Only answer your own Telegram user ID.
+- [ ] Add a 7am scheduled push of the readiness summary (Railway cron or APScheduler).
+
+Claude Code prompt: `Add a Telegram webhook route using python-telegram-bot. Messages from my chat ID go to the Manager agent; the reply goes back to Telegram. Reject all other users.`
+
+Done when you text the bot from your phone and get your score back.
+
+### Phase 5: The pixel office
+
+- [ ] Stream the event bus to the browser over a WebSocket (`/ws/events`).
+- [ ] Build the office: either adapt pixel-agents (its core is agent-agnostic) or build a small Phaser 3 scene with a free tileset and three characters. Start with Phaser: you control everything and it's easier to explain in interviews.
+- [ ] Map each event to an animation: walk to a desk, type, show a speech bubble with the message text, go idle.
+- [ ] Deploy the frontend to Vercel.
+
+Claude Code prompt: `Build a Phaser 3 scene in frontend/ with an office tilemap and three characters (Manager, Health Coach, Market Scout). Subscribe to /ws/events and drive walk, type, talk and idle animations from the event status. Show speech bubbles with the event text.`
+
+Done when a Telegram message visibly plays out on the office page.
+
+### Phase 6: Market Scout
+
+- [ ] Run a daily job that pulls trending tokens from DexScreener and CoinGecko, snapshots them to Postgres, and computes risk and momentum features.
+- [ ] The Scout agent turns the top flags into a 5-line brief. The Manager posts it to Telegram and the office shows the Scout at the chart wall.
+
+Done when a week of daily briefs has landed.
+
+### Phase 7: Polish and ship
+
+- [ ] Write a README with a GIF, an architecture diagram, how the readiness score works, and costs.
+- [ ] Add a simple stats page: a 30-day readiness chart, plus the Scout's flags vs. what happened.
+- [ ] Record the demo video (script below), and post it on LinkedIn with the repo link.
+
+## Demo video script (about 75 seconds)
+
+Record a split screen: your phone (screen recording) on the left and the office in the browser on the right.
+
+1. **0–5s, hook.** The office is idle. Caption: "My AI team runs in the cloud. I manage it from Telegram."
+2. **5–25s, the ask.** You text "How ready am I to train today?". The Manager stands up and walks to the Health Coach with a speech bubble.
+3. **25–40s, the work.** The Coach types. The bubble shows "HRV 12% below baseline, 6h10m sleep". Your phone buzzes: "Recovery 58% (yellow). Swapping today's intervals for an easy 40 min in Zone 2. Marathon estimate: 3:28–3:36."
+4. **40–55s, the second agent.** Cut to the morning: the Scout walks to the chart wall and the daily meme coin brief lands in Telegram.
+5. **55–75s, under the hood.** Show the architecture diagram, the 30-day readiness chart, and the GitHub repo. Caption the stack: "FastAPI · Postgres · Claude Agent SDK · Telegram · Phaser · Railway".
+
+Tips: record with real data, keep captions on screen (most people watch muted), and end on the repo URL.
+
+## Costs, timeline and resume framing
+
+Expect roughly $10–15 for the month. These are approximate figures, so check current pricing when signing up.
+
+| Item | Approx. cost / month | Notes |
+| --- | --- | --- |
+| Railway Hobby (backend + Postgres) | ~$5 | Fly.io is similar |
+| Claude API | ~$2–5 | Haiku for routing, Sonnet for the Coach, a few calls a day |
+| Health Auto Export premium | a few dollars | Needed for the REST API automation |
+| Vercel (frontend) | $0 | Free hobby tier |
+| Telegram, DexScreener, CoinGecko | $0 | Free APIs |
+
+**Timeline.** Part-time, plan on about 4–6 weeks to build, then the month of running and recording. Phases 2 and 5 are the biggest. Start collecting health data in Phase 2 as early as possible, because the baselines need a few weeks of history.
+
+**Resume bullets (once it's built):**
+
+- Built a cloud-hosted multi-agent system (Claude Agent SDK, FastAPI, Postgres on Railway) controlled through a Telegram bot, with a real-time Phaser visualizer streaming agent state over WebSockets.
+- Designed a daily Apple Watch data pipeline (webhook ingestion, normalization, rolling 7/28-day baselines) plus tested recovery, strain, training-load and race-prediction models that drive an adaptive marathon plan.
+- Built a market-data ingestion job and risk-scoring model for trending tokens. Evaluated 30 days of flags against outcomes.
+
+Interviewers will ask why the LLM doesn't compute the score. "Deterministic math, LLM for language" is the answer that lands.
