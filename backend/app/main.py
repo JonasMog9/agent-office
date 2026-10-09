@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db.session import get_session
+from app.ingest.apple_routes import router as apple_router
 from app.ingest.routes import router as ingest_router
 from app.ingest.strava_routes import resume_unfinished_backfill
 from app.ingest.strava_routes import router as strava_router
@@ -37,6 +38,7 @@ app.add_middleware(
 )
 app.include_router(ingest_router)
 app.include_router(strava_router)
+app.include_router(apple_router)
 
 
 @app.get("/health")
