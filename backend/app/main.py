@@ -3,6 +3,8 @@
 Routes for /telegram and /ws/events land in later phases.
 """
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI
@@ -15,9 +17,17 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db.session import get_session
 from app.ingest.routes import router as ingest_router
+from app.ingest.strava_routes import resume_unfinished_backfill
 from app.ingest.strava_routes import router as strava_router
 
-app = FastAPI(title="Agent Office")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    resume_unfinished_backfill()  # a redeploy kills background threads; pick the import back up
+    yield
+
+
+app = FastAPI(title="Agent Office", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
