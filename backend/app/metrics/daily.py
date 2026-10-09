@@ -29,10 +29,12 @@ from app.metrics.recovery import BASELINE_DAYS, recovery
 from app.metrics.sleep import (
     DEBT_NIGHTS,
     DEBT_WINDOW,
+    MIN_NIGHT_MIN,
     sleep_consistency,
     sleep_debt,
     sleep_need,
     sleep_performance,
+    usable_night,
 )
 from app.metrics.strain import daily_strain
 
@@ -52,7 +54,14 @@ def invalidate_hr_max() -> None:
 
 
 def _row(m: DailyMetric | None) -> dict:
-    return {c: getattr(m, c) for c in _METRIC_COLUMNS} if m else {}
+    """A day's metrics as scoring sees them: a too-short night counts as no sleep data."""
+    if not m:
+        return {}
+    row = {c: getattr(m, c) for c in _METRIC_COLUMNS}
+    asleep = row.get("sleep_asleep_min")
+    if asleep is not None and not usable_night(asleep):
+        row |= {"sleep_asleep_min": None, "sleep_start": None, "short_night_min": asleep}
+    return row
 
 
 def estimate_hr_max(session: Session, as_of: date) -> float | None:
@@ -150,7 +159,15 @@ def compute_day(session: Session, day: date, hr_max: float | None) -> dict:
             "sleep_need": need.as_dict(),
             "sleep_performance": performance.as_dict(),
             "sleep_consistency": consistency.as_dict(),
-        },
+        }
+        | (
+            {
+                "sleep_ignored": f"Only {today['short_night_min']:.0f} min recorded last night "
+                f"(≤ {MIN_NIGHT_MIN}), likely the watch died or came off; scored as no data."
+            }
+            if today.get("short_night_min") is not None
+            else {}
+        ),
     }
 
 

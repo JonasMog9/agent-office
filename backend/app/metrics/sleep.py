@@ -21,6 +21,9 @@ from statistics import pstdev
 
 from app.metrics.common import Component, ScoreResult
 
+# A "night" this short is almost always a watch that died or came off, not real sleep, so it's
+# scored as a night without data. Daily_metrics keeps the raw number.
+MIN_NIGHT_MIN = 240
 DEBT_NIGHTS = 7  # bedtimes used for consistency
 DEBT_WINDOW = 30  # nights the balance runs over; 0.85^30 ≈ 0.008, so dropping one is invisible
 DEBT_DECAY = 0.85
@@ -82,3 +85,7 @@ def sleep_consistency(bedtimes: Sequence[datetime | None]) -> ScoreResult:
         [Component("bedtime spread (min)", round(spread, 1))],
         [f"Based on {len(starts)} nights."],
     )
+
+
+def usable_night(asleep_min: float | None) -> bool:
+    return asleep_min is not None and asleep_min > MIN_NIGHT_MIN

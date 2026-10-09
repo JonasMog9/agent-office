@@ -159,3 +159,18 @@ def test_a_scoring_failure_never_fails_the_upload(
     assert response.status_code == 200
     with SessionLocal() as s:
         assert s.get(DailyMetric, END).hrv_sdnn_ms == 80
+
+
+@pytest.mark.usefixtures("db")
+def test_a_night_of_four_hours_or_less_counts_as_no_data() -> None:
+    seed(with_workout=False)
+    with SessionLocal() as s:
+        s.get(DailyMetric, END).sleep_asleep_min = 191  # the watch died partway through
+        s.commit()
+        recompute_scores(s, [END - timedelta(days=1), END])
+    before, short = score(END - timedelta(days=1)), score(END)
+    assert short.sleep_performance is None
+    assert short.sleep_debt_min < before.sleep_debt_min  # faded, not +289 min of debt
+    assert "191 min" in short.details["sleep_ignored"]
+    sleep = next(c for c in short.details["recovery"]["components"] if c["name"] == "sleep")
+    assert sleep["value"] is None
