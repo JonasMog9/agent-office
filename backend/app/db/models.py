@@ -6,11 +6,25 @@ Health data lands in three layers:
 - ``health_samples``: one row per Apple Health sample, unique on (metric, start, end, category),
   so resending the same samples never duplicates them.
 - ``daily_metrics``: one row per day, recomputed from ``health_samples`` whenever a day changes.
+
+Workouts come from Strava: ``strava_tokens`` holds the owner's OAuth tokens (refreshed and
+rotated by the app) and ``workouts`` one row per activity, with its second-by-second streams.
 """
 
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Date, DateTime, Float, Integer, String, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Date,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -66,6 +80,55 @@ class DailyMetric(Base):
     sleep_in_bed_min: Mapped[float | None] = mapped_column(Float)
     sleep_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sleep_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class StravaToken(Base):
+    """The owner's Strava OAuth tokens plus webhook and backfill bookkeeping. One row."""
+
+    __tablename__ = "strava_tokens"
+
+    athlete_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    access_token: Mapped[str] = mapped_column(String(128))
+    refresh_token: Mapped[str] = mapped_column(String(128))
+    expires_at: Mapped[int] = mapped_column(BigInteger)  # epoch seconds, as Strava returns it
+    scope: Mapped[str] = mapped_column(String(128), default="")
+    subscription_id: Mapped[int | None] = mapped_column(BigInteger)
+    backfill_status: Mapped[str] = mapped_column(String(64), default="not started")
+    backfill_imported: Mapped[int] = mapped_column(Integer, default=0)
+    backfill_error: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class Workout(Base):
+    """One Strava activity. Strava is the source of truth for workouts (see CLAUDE.md)."""
+
+    __tablename__ = "workouts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    source: Mapped[str] = mapped_column(String(16), default="strava")
+    sport_type: Mapped[str] = mapped_column(String(32), index=True)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    day: Mapped[date] = mapped_column(Date, index=True)  # local date where the activity started
+    elapsed_s: Mapped[int | None] = mapped_column(Integer)
+    moving_s: Mapped[int | None] = mapped_column(Integer)
+    distance_m: Mapped[float | None] = mapped_column(Float)
+    elevation_gain_m: Mapped[float | None] = mapped_column(Float)
+    avg_hr: Mapped[float | None] = mapped_column(Float)
+    max_hr: Mapped[float | None] = mapped_column(Float)
+    avg_speed_mps: Mapped[float | None] = mapped_column(Float)
+    avg_cadence: Mapped[float | None] = mapped_column(Float)
+    avg_watts: Mapped[float | None] = mapped_column(Float)
+    calories: Mapped[float | None] = mapped_column(Float)
+    summary: Mapped[dict] = mapped_column(
+        JSON
+    )  # the full Strava activity, incl. splits and best efforts
+    streams: Mapped[dict | None] = mapped_column(JSON)  # {"heartrate": [...], "time": [...], ...}
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
