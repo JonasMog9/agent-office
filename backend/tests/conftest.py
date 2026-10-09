@@ -16,6 +16,9 @@ from app.db.session import Base, engine  # noqa: E402
 @pytest.fixture
 def db() -> Iterator[None]:
     """Fresh tables for one test."""
+    from app.metrics.daily import invalidate_hr_max
+
+    invalidate_hr_max()
     Base.metadata.create_all(engine)
     yield
     Base.metadata.drop_all(engine)

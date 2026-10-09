@@ -3,7 +3,7 @@
 import logging
 import threading
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.db.models import StravaToken, Workout
 from app.db.upsert import insert_for
 from app.ingest.strava import RateLimited, StravaClient, StravaError, workout_from_activity
+from app.metrics.daily import invalidate_hr_max, safe_recompute
 
 log = logging.getLogger(__name__)
 _refresh_lock = threading.Lock()
@@ -65,6 +66,9 @@ def import_activity(session: Session, client: StravaClient, activity_id: int) ->
     update = {k: v for k, v in values.items() if k != "id"} | {"updated_at": func.now()}
     session.execute(stmt.on_conflict_do_update(index_elements=["id"], set_=update))
     session.commit()
+    # Strain is that day's; the next day's sleep performance uses the need strain set.
+    invalidate_hr_max()
+    safe_recompute(session, [values["day"], values["day"] + timedelta(days=1)])
     return True
 
 
@@ -90,8 +94,11 @@ def handle_event(session: Session, client: StravaClient, event: dict) -> str:
         token = access_token(session, client)
         if client.get_activity(token, activity_id) is None:
             if workout := session.get(Workout, activity_id):
+                day = workout.day
                 session.delete(workout)
                 session.commit()
+                invalidate_hr_max()
+                safe_recompute(session, [day, day + timedelta(days=1)])
             return "deleted"
         return "ignored: still exists"
     return "ignored"

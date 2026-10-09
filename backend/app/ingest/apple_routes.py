@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.db.session import SessionLocal
 from app.ingest.apple_export import ExportStats, iter_samples, open_export_xml
 from app.ingest.service import recompute_days, store_samples
+from app.metrics.daily import recompute_all
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/ingest/apple-export")
@@ -66,6 +67,8 @@ def process_export(path: str, since: date) -> None:
                 recompute_days(session, ordered[i : i + 50])
                 session.commit()
                 STATE["days_done"] = min(i + 50, len(ordered))
+        STATE["status"] = "computing scores"
+        recompute_all(SessionLocal)
         STATE.update(
             status="done",
             records_seen=stats.records_seen,

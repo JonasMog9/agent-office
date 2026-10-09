@@ -3,6 +3,7 @@
 Routes for /telegram and /ws/events land in later phases.
 """
 
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -15,16 +16,19 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.db.session import get_session
+from app.db.session import SessionLocal, get_session
 from app.ingest.apple_routes import router as apple_router
 from app.ingest.routes import router as ingest_router
 from app.ingest.strava_routes import resume_unfinished_backfill
 from app.ingest.strava_routes import router as strava_router
+from app.metrics.daily import recompute_all
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     resume_unfinished_backfill()  # a redeploy kills background threads; pick the import back up
+    # Rebuild every stored score in the background, so formula changes apply after a deploy.
+    threading.Thread(target=recompute_all, args=(SessionLocal,), daemon=True).start()
     yield
 
 

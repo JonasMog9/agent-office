@@ -132,3 +132,27 @@ class Workout(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class DailyScore(Base):
+    """Recovery, strain and sleep for one day, recomputed whenever its inputs change.
+
+    ``details`` holds every score's component breakdown (the "reasons") for the agents.
+    """
+
+    __tablename__ = "daily_scores"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    recovery: Mapped[float | None] = mapped_column(Float)
+    recovery_label: Mapped[str | None] = mapped_column(String(8))
+    strain: Mapped[float | None] = mapped_column(Float)
+    sleep_need_min: Mapped[float | None] = mapped_column(Float)  # for the coming night
+    sleep_debt_min: Mapped[float | None] = mapped_column(Float)
+    sleep_performance: Mapped[float | None] = mapped_column(Float)  # last night, % of need
+    sleep_consistency: Mapped[float | None] = mapped_column(Float)
+    hr_rest_used: Mapped[float | None] = mapped_column(Float)
+    hr_max_used: Mapped[float | None] = mapped_column(Float)
+    details: Mapped[dict] = mapped_column(JSON)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
