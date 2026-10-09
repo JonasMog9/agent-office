@@ -29,7 +29,14 @@ UNITS: dict[str, dict[str, Callable[[float], float]]] = {
         "f": lambda v: (v - 32) * 5 / 9,
     },
     "active_energy": {"kcal": _SAME, "cal": _SAME, "kj": lambda v: v / 4.184},
-    "vo2max": {"ml/(kg·min)": _SAME, "ml/kg/min": _SAME, "ml/(kg*min)": _SAME},
+    "vo2max": {
+        "ml/(kg·min)": _SAME,
+        "ml/kg/min": _SAME,
+        "ml/(kg*min)": _SAME,
+        "ml/min·kg": _SAME,  # Apple Health export.xml spelling
+        "ml/(min·kg)": _SAME,
+        "ml/kg·min": _SAME,
+    },
     "ground_contact": {"ms": _SAME, "s": lambda v: v * 1000},
     "vertical_oscillation": {
         "cm": _SAME,
@@ -89,6 +96,20 @@ def _to_number(text: str) -> float:
     return float(text)
 
 
+def sample_day(metric: str, start: datetime, end: datetime) -> date:
+    """The local day a sample counts toward (night metrics: the morning they end)."""
+    return end.date() if metric in NIGHT_METRICS else start.date()
+
+
+def convert_unit(metric: str, value: float, unit: str) -> float:
+    """``value`` in ``metric``'s canonical unit. Raises ValueError for an unknown unit."""
+    key = unit.lower().replace(" ", "")
+    convert = UNITS[metric].get(key) if key else _SAME
+    if convert is None:
+        raise ValueError(f"unit {unit!r} not supported for {metric}")
+    return convert(value)
+
+
 def parse_line(metric: str, line: str) -> Sample:
     """Parse one ``start|end|value|unit`` line. Raises ValueError with a readable reason."""
     parts = [p.strip() for p in line.split("|")]
@@ -99,7 +120,7 @@ def parse_line(metric: str, line: str) -> Sample:
         raise ValueError("dates need a UTC offset (use Format Date: ISO 8601)")
     if end < start:
         raise ValueError("end is before start")
-    day = end.date() if metric in NIGHT_METRICS else start.date()
+    day = sample_day(metric, start, end)
 
     if metric == "sleep":
         stage = SLEEP_STAGES.get(parts[2].lower())
@@ -107,11 +128,8 @@ def parse_line(metric: str, line: str) -> Sample:
             raise ValueError(f"unknown sleep stage {parts[2]!r}")
         return Sample(metric, start, end, None, stage, day)
 
-    unit = parts[3].lower().replace(" ", "") if len(parts) == 4 else ""
-    convert = UNITS[metric].get(unit) if unit else _SAME
-    if convert is None:
-        raise ValueError(f"unit {parts[3]!r} not supported for {metric}")
-    return Sample(metric, start, end, convert(_to_number(parts[2])), "", day)
+    unit = parts[3] if len(parts) == 4 else ""
+    return Sample(metric, start, end, convert_unit(metric, _to_number(parts[2]), unit), "", day)
 
 
 def parse_payload(body: dict) -> ParseResult:

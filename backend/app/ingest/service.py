@@ -12,22 +12,37 @@ from app.ingest.daily import summarize_day
 from app.ingest.shortcut import ParseResult, Sample, parse_payload
 
 
-def store_samples(session: Session, samples: Iterable[Sample]) -> None:
-    for s in samples:
-        stmt = _insert(session, HealthSample).values(
-            metric=s.metric,
-            start_at=s.start,
-            end_at=s.end,
-            value=s.value,
-            category=s.category,
-            day=s.day,
-        )
+def store_samples(session: Session, samples: Iterable[Sample], batch_size: int = 1000) -> None:
+    """Upsert samples in multi-row batches (the Apple Health export can hold ~10^5 of them)."""
+    batch: dict[tuple, dict] = {}
+
+    def flush() -> None:
+        if not batch:
+            return
+        stmt = _insert(session, HealthSample).values(list(batch.values()))
         session.execute(
             stmt.on_conflict_do_update(
                 index_elements=["metric", "start_at", "end_at", "category"],
                 set_={"value": stmt.excluded.value, "day": stmt.excluded.day},
             )
         )
+        batch.clear()
+
+    for s in samples:
+        # A key may appear only once per statement (Postgres rejects updating a row twice),
+        # so duplicates inside one batch collapse to the last one, as sequential upserts would.
+        key = (s.metric, s.start, s.end, s.category)
+        batch[key] = {
+            "metric": s.metric,
+            "start_at": s.start,
+            "end_at": s.end,
+            "value": s.value,
+            "category": s.category,
+            "day": s.day,
+        }
+        if len(batch) >= batch_size:
+            flush()
+    flush()
 
 
 def recompute_days(session: Session, days: Iterable[date]) -> None:
