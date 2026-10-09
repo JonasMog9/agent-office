@@ -3,6 +3,7 @@
 Routes for /telegram and /ws/events land in later phases.
 """
 
+import logging
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -19,16 +20,29 @@ from app.config import get_settings
 from app.db.session import SessionLocal, get_session
 from app.ingest.apple_routes import router as apple_router
 from app.ingest.routes import router as ingest_router
+from app.ingest.service import reassign_night_samples
 from app.ingest.strava_routes import resume_unfinished_backfill
 from app.ingest.strava_routes import router as strava_router
 from app.metrics.daily import recompute_all
+
+log = logging.getLogger(__name__)
+
+
+def _startup_rebuild() -> None:
+    """Fix stored data a rule change left on the wrong day, then rebuild every score."""
+    try:
+        with SessionLocal() as session:
+            reassign_night_samples(session, get_settings().timezone)
+    except Exception:  # noqa: BLE001  (never take the app down over a repair)
+        log.exception("Reassigning night samples failed")
+    recompute_all(SessionLocal)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     resume_unfinished_backfill()  # a redeploy kills background threads; pick the import back up
     # Rebuild every stored score in the background, so formula changes apply after a deploy.
-    threading.Thread(target=recompute_all, args=(SessionLocal,), daemon=True).start()
+    threading.Thread(target=_startup_rebuild, daemon=True).start()
     yield
 
 

@@ -1,7 +1,8 @@
 """Store Shortcut payloads and recompute the days they touch."""
 
 from collections.abc import Iterable
-from datetime import date
+from datetime import UTC, date
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.models import DailyMetric, HealthSample, RawPayload
 from app.db.upsert import insert_for as _insert
 from app.ingest.daily import summarize_day
-from app.ingest.shortcut import ParseResult, Sample, parse_payload
+from app.ingest.shortcut import NIGHT_METRICS, ParseResult, Sample, parse_payload, sample_day
 from app.metrics.daily import days_affected_by, safe_recompute
 
 
@@ -70,3 +71,26 @@ def ingest_shortcut_payload(session: Session, body: dict) -> ParseResult:
     session.commit()
     safe_recompute(session, days_affected_by(days))
     return result
+
+
+def reassign_night_samples(session: Session, timezone: str) -> set[date]:
+    """Move stored night samples to the day the current rule gives them; recompute those days.
+
+    Postgres keeps timestamps in UTC and drops the offset they arrived with, so the home
+    ``timezone`` stands in for it. Idempotent: once every sample is on its day, nothing moves.
+    """
+    tz = ZoneInfo(timezone)
+    changed: set[date] = set()
+    rows = session.scalars(select(HealthSample).where(HealthSample.metric.in_(NIGHT_METRICS)))
+    for r in rows:
+        start = r.start_at if r.start_at.tzinfo else r.start_at.replace(tzinfo=UTC)
+        end = r.end_at if r.end_at.tzinfo else r.end_at.replace(tzinfo=UTC)
+        day = sample_day(r.metric, start.astimezone(tz), end.astimezone(tz))
+        if day != r.day:
+            changed |= {r.day, day}
+            r.day = day
+    if changed:
+        session.flush()
+        recompute_days(session, changed)
+    session.commit()
+    return changed

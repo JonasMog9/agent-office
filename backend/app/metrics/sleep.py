@@ -1,6 +1,6 @@
 """Sleep: tonight's need, recent debt, last night's performance, and timing consistency.
 
-    debt          = a running balance over the last 14 nights, oldest first:
+    debt          = a running balance over the last 30 nights, oldest first:
                     debt = max(0, debt × 0.85 + base need − time asleep)
                     short nights add to it, long nights pay it off, it never goes below
                     zero (extra sleep can't be banked), and old debt fades by 15% a night
@@ -22,7 +22,7 @@ from statistics import pstdev
 from app.metrics.common import Component, ScoreResult
 
 DEBT_NIGHTS = 7  # bedtimes used for consistency
-DEBT_WINDOW = 14  # nights the debt balance runs over; 0.85^14 ≈ 0.1, so older nights barely count
+DEBT_WINDOW = 30  # nights the balance runs over; 0.85^30 ≈ 0.008, so dropping one is invisible
 DEBT_DECAY = 0.85
 STRAIN_EXTRA_MAX_MIN = 45
 DEBT_REPAY_SHARE = 0.25

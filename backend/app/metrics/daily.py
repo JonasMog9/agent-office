@@ -5,7 +5,7 @@ calls the pure scoring functions, and upserts one ``daily_scores`` row.
 
     recovery(d)     today's metrics vs the 60 days before d
     strain(d)       TRIMP of d's workouts
-    sleep debt(d)   running balance over the 14 nights ending the morning of d
+    sleep debt(d)   running balance over the 30 nights ending the morning of d
     performance(d)  last night's sleep vs the need computed the day before
     need(d)         sleep for the coming night: base + strain(d) + debt repayment
 

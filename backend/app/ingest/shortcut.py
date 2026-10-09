@@ -12,7 +12,7 @@ docs/health-shortcut.md for how it's built.
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 # metric key -> (canonical unit, {accepted unit: converter to canonical})
 _SAME: Callable[[float], float] = lambda v: v  # noqa: E731
@@ -67,8 +67,11 @@ SLEEP_STAGES = {
     "asleep unspecified": "asleep",
 }
 
-# Metrics that belong to the night they end in (the morning you wake up), not the day they start.
+# Metrics that belong to a night, counted toward the morning you wake up. A night starts at
+# 18:00: anything starting from then on counts toward the next day, so a night that begins at
+# 23:40 stays whole instead of splitting at midnight.
 NIGHT_METRICS = {"sleep", "wrist_temp"}
+NIGHT_STARTS_HOUR = 18
 METRICS = set(UNITS) | {"sleep"}
 
 
@@ -97,8 +100,10 @@ def _to_number(text: str) -> float:
 
 
 def sample_day(metric: str, start: datetime, end: datetime) -> date:
-    """The local day a sample counts toward (night metrics: the morning they end)."""
-    return end.date() if metric in NIGHT_METRICS else start.date()
+    """The local day a sample counts toward (night metrics: the morning after 18:00)."""
+    if metric in NIGHT_METRICS:
+        return (start + timedelta(hours=24 - NIGHT_STARTS_HOUR)).date()
+    return start.date()
 
 
 def convert_unit(metric: str, value: float, unit: str) -> float:
