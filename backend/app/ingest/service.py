@@ -4,18 +4,12 @@ from collections.abc import Iterable
 from datetime import date
 
 from sqlalchemy import func, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.db.models import DailyMetric, HealthSample, RawPayload
+from app.db.upsert import insert_for as _insert
 from app.ingest.daily import summarize_day
 from app.ingest.shortcut import ParseResult, Sample, parse_payload
-
-
-def _insert(session: Session, table):  # noqa: ANN001, ANN202
-    """INSERT that supports ON CONFLICT on both Postgres (production) and SQLite (tests)."""
-    return (pg_insert if session.get_bind().dialect.name == "postgresql" else sqlite_insert)(table)
 
 
 def store_samples(session: Session, samples: Iterable[Sample]) -> None:

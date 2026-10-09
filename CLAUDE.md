@@ -40,7 +40,7 @@ backend/
   alembic.ini
   pyproject.toml
 frontend/            Vite + React + TS + Phaser office
-docs/                how-tos: Railway setup, building the iOS health-sync Shortcut
+docs/                how-tos: Railway setup, the iOS health-sync Shortcut, connecting Strava
 .github/workflows/   CI: ruff + pytest
 .env.example         every env var the app reads, with placeholder values
 PLAN.md

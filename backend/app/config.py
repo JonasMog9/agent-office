@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     strava_refresh_token: str = ""
     strava_athlete_id: int = 0
     strava_webhook_verify_token: str = ""
+    strava_backfill_days: int = 365
+    # Base URL for OAuth/webhook callbacks. Railway sets RAILWAY_PUBLIC_DOMAIN automatically.
+    public_base_url: str = ""
+    railway_public_domain: str = ""
     cors_origins: str = "http://localhost:5173"
 
     @field_validator("database_url")
@@ -35,3 +39,13 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def public_base_url(fallback: str) -> str:
+    """https://<public domain> for callbacks; ``fallback`` (the request's base URL) locally."""
+    settings = get_settings()
+    if settings.public_base_url:
+        return settings.public_base_url.rstrip("/")
+    if settings.railway_public_domain:
+        return f"https://{settings.railway_public_domain}"
+    return fallback.rstrip("/")

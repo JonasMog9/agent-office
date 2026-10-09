@@ -1,6 +1,6 @@
 """FastAPI app.
 
-Routes for /strava/webhook, /telegram and /ws/events land in later phases.
+Routes for /telegram and /ws/events land in later phases.
 """
 
 from typing import Annotated
@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db.session import get_session
 from app.ingest.routes import router as ingest_router
+from app.ingest.strava_routes import router as strava_router
 
 app = FastAPI(title="Agent Office")
 
@@ -25,6 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(ingest_router)
+app.include_router(strava_router)
 
 
 @app.get("/health")

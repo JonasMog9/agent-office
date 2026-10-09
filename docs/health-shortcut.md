@@ -1,6 +1,6 @@
 # Building the health-sync Shortcut (Phase 2)
 
-This iPhone Shortcut sends the last 3 days of Apple Health data to the backend every time you open Instagram. It takes about 20 minutes to build once. You build one block for HRV, then duplicate it for each other metric.
+This iPhone Shortcut sends the last 3 days of Apple Health data to the backend every time you open an app you use daily (Gmail here; Instagram or any other works too). It takes about 20 minutes to build once. You build one block for HRV, then duplicate it for each other metric.
 
 How it works:
 
@@ -103,15 +103,15 @@ The notification should show something like:
 | `bad or missing X-Ingest-Secret` | The header name or value doesn't match Railway |
 | `INGEST_SECRET is not set` | The variable is missing in Railway |
 
-## 6. Run it automatically when you open Instagram
+## 6. Run it automatically when you open Gmail
 
-Shortcuts → **Automation** tab → **+** → **App** → choose **Instagram**, tick **Is Opened** → **Run Immediately** (not "Run After Confirmation") → Next → **Health Sync**.
+Shortcuts → **Automation** tab → **+** → **App** → choose **Gmail** (or any app you open every morning), tick **Is Opened** → **Run Immediately** (not "Run After Confirmation") → Next → **Health Sync**.
 
 Opening an app means the phone is unlocked, which is when iOS lets Shortcuts read Health data.
 
 ### Optional: only once a day
 
-Running on every Instagram open is safe, because duplicates are ignored, but it sends data more often than needed. To limit it to once a day, add this at the very **top** of the Shortcut:
+Running on every app open is safe, because duplicates are ignored, but it sends data more often than needed. To limit it to once a day, add this at the very **top** of the Shortcut:
 
 1. **Get File** from Shortcuts folder, path `health-sync-last.txt`. Turn off *Error If Not Found*.
 2. **Format Date**: *Current Date*, format **Custom** `yyyy-MM-dd`.
@@ -121,4 +121,4 @@ And at the very **bottom**:
 
 4. **Save File**: input = the *Formatted Date* from step 2, destination Shortcuts folder, path `health-sync-last.txt`, **Overwrite If File Exists** on.
 
-Keep your phone passcode on: it's what keeps Health data encrypted, and the Instagram trigger doesn't need it removed.
+Keep your phone passcode on: it's what keeps Health data encrypted, and the app-open trigger doesn't need it removed.
