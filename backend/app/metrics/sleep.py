@@ -1,15 +1,18 @@
 """Sleep: tonight's need, recent debt, last night's performance, and timing consistency.
 
-    debt          = Σ over the last 7 nights of max(0, base need − time asleep)
+    debt          = a running balance over the last 14 nights, oldest first:
+                    debt = max(0, debt × 0.85 + base need − time asleep)
+                    short nights add to it, long nights pay it off, it never goes below
+                    zero (extra sleep can't be banked), and old debt fades by 15% a night
     need tonight  = base need + strain extra + debt repayment
                     strain extra    = strain / 21 × 45 min   (a 21-strain day adds 45 minutes)
                     debt repayment  = min(debt / 4, 60 min)  (pay back a quarter, at most an hour)
     performance   = time asleep / that night's need, capped at 100%
     consistency   = 100 − standard deviation of bedtimes in minutes (floored at 0)
 
-Nights without data are left out of the debt rather than counted as zero sleep, and the
-result says how many nights it's based on. Whoop's exact formulas aren't public; these are
-simple, explainable stand-ins.
+Nights without data add nothing to the debt (rather than counting as zero sleep) but old
+debt still fades, and the result says how many nights it's based on. Whoop's exact formulas
+aren't public; these are simple, explainable stand-ins.
 """
 
 from collections.abc import Sequence
@@ -18,22 +21,30 @@ from statistics import pstdev
 
 from app.metrics.common import Component, ScoreResult
 
-DEBT_NIGHTS = 7
+DEBT_NIGHTS = 7  # bedtimes used for consistency
+DEBT_WINDOW = 14  # nights the debt balance runs over; 0.85^14 ≈ 0.1, so older nights barely count
+DEBT_DECAY = 0.85
 STRAIN_EXTRA_MAX_MIN = 45
 DEBT_REPAY_SHARE = 0.25
 DEBT_REPAY_CAP_MIN = 60
 
 
 def sleep_debt(recent_asleep_min: Sequence[float | None], base_need_min: float) -> ScoreResult:
-    nights = [a for a in recent_asleep_min[-DEBT_NIGHTS:] if a is not None]
-    debt = sum(max(0.0, base_need_min - a) for a in nights)
-    notes = [f"Based on {len(nights)} of the last {DEBT_NIGHTS} nights."]
+    """Sleep debt after the last of ``recent_asleep_min`` (one entry per night, oldest first)."""
+    window = recent_asleep_min[-DEBT_WINDOW:]
+    debt = 0.0
+    comps = []
+    for asleep in window:
+        faded = debt * DEBT_DECAY
+        if asleep is None:
+            debt = faded
+            continue
+        debt = max(0.0, faded + base_need_min - asleep)
+        comps.append(Component("night", asleep, base_need_min, contribution=round(debt - faded, 1)))
+    nights = len(comps)
+    notes = [f"Based on {nights} of the last {len(window)} nights."]
     if not nights:
         notes.append("No sleep recorded recently.")
-    comps = [
-        Component("night", a, base_need_min, contribution=round(max(0.0, base_need_min - a), 1))
-        for a in nights
-    ]
     return ScoreResult(round(debt, 1), comps, notes)
 
 

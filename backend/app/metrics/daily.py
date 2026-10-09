@@ -5,7 +5,7 @@ calls the pure scoring functions, and upserts one ``daily_scores`` row.
 
     recovery(d)     today's metrics vs the 60 days before d
     strain(d)       TRIMP of d's workouts
-    sleep debt(d)   the 7 nights ending the morning of d
+    sleep debt(d)   running balance over the 14 nights ending the morning of d
     performance(d)  last night's sleep vs the need computed the day before
     need(d)         sleep for the coming night: base + strain(d) + debt repayment
 
@@ -28,6 +28,7 @@ from app.db.upsert import insert_for
 from app.metrics.recovery import BASELINE_DAYS, recovery
 from app.metrics.sleep import (
     DEBT_NIGHTS,
+    DEBT_WINDOW,
     sleep_consistency,
     sleep_debt,
     sleep_need,
@@ -99,7 +100,7 @@ def _strain_for(session: Session, day: date, hr_rest: float | None, hr_max: floa
 def compute_day(session: Session, day: date, hr_max: float | None) -> dict:
     """All of ``day``'s scores and their breakdowns, as ``daily_scores`` column values."""
     base_need = get_settings().sleep_need_min
-    since = day - timedelta(days=BASELINE_DAYS + DEBT_NIGHTS)
+    since = day - timedelta(days=BASELINE_DAYS + DEBT_WINDOW)
     metrics = {
         m.day: _row(m)
         for m in session.scalars(select(DailyMetric).where(DailyMetric.day.between(since, day)))
@@ -117,7 +118,7 @@ def compute_day(session: Session, day: date, hr_max: float | None) -> dict:
     def asleep_nights(end: date) -> list:
         return [
             metrics.get(end - timedelta(days=i), {}).get("sleep_asleep_min")
-            for i in range(DEBT_NIGHTS - 1, -1, -1)
+            for i in range(DEBT_WINDOW - 1, -1, -1)
         ]
 
     debt = sleep_debt(asleep_nights(day), base_need)
