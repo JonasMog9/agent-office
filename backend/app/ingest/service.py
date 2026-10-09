@@ -10,6 +10,7 @@ from app.db.models import DailyMetric, HealthSample, RawPayload
 from app.db.upsert import insert_for as _insert
 from app.ingest.daily import summarize_day
 from app.ingest.shortcut import ParseResult, Sample, parse_payload
+from app.metrics.daily import days_affected_by, safe_recompute
 
 
 def store_samples(session: Session, samples: Iterable[Sample], batch_size: int = 1000) -> None:
@@ -64,6 +65,8 @@ def ingest_shortcut_payload(session: Session, body: dict) -> ParseResult:
     session.add(RawPayload(source="shortcut", body=body))
     result = parse_payload(body)
     store_samples(session, result.samples)
-    recompute_days(session, (s.day for s in result.samples))
+    days = {s.day for s in result.samples}
+    recompute_days(session, days)
     session.commit()
+    safe_recompute(session, days_affected_by(days))
     return result

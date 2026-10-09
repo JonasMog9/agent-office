@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     strava_webhook_verify_token: str = ""
     strava_backfill_days: int = 365
     apple_export_days: int = 400  # history kept from an Apple Health export upload
+    # Scoring settings. MAX_HR is estimated from Strava heart-rate data when unset.
+    athlete_sex: str = "male"  # TRIMP coefficients: "male" or "female"
+    max_hr: float | None = None
+    sleep_need_min: float = 480
     # Base URL for OAuth/webhook callbacks. Railway sets RAILWAY_PUBLIC_DOMAIN automatically.
     public_base_url: str = ""
     railway_public_domain: str = ""
