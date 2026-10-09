@@ -22,6 +22,7 @@ from app.ingest.strava_service import (
     backfill,
     ensure_subscription,
     handle_event,
+    has_unfinished_backfill,
     owner_token,
     save_token,
 )
@@ -58,6 +59,20 @@ def _state_ok(state: str, max_age_s: int = 600) -> bool:
 def start_backfill(client: StravaClient) -> None:
     """Run the history import in a background thread: it can take an hour at Strava's limits."""
     threading.Thread(target=backfill, args=(SessionLocal, client), daemon=True).start()
+
+
+def resume_unfinished_backfill() -> bool:
+    """On startup, continue an import a restart cut short. Never fails startup."""
+    try:
+        with SessionLocal() as session:
+            if not has_unfinished_backfill(session):
+                return False
+        start_backfill(get_client())
+        log.info("Resuming unfinished Strava backfill")
+        return True
+    except Exception:  # noqa: BLE001  (no database or table yet: nothing to resume)
+        log.exception("Could not check for an unfinished Strava backfill")
+        return False
 
 
 def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
@@ -174,6 +189,7 @@ def status(session: DB) -> dict:
             "status": row.backfill_status if row else "not started",
             "imported": row.backfill_imported if row else 0,
             "error": row.backfill_error if row else None,
+            "last_progress_at": row.updated_at.isoformat() if row and row.updated_at else None,
         },
         "workouts": count,
         "latest_workout_day": latest.isoformat() if latest else None,

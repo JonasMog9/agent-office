@@ -58,6 +58,8 @@ class StravaClient:
         self.sleep = sleep
         self.now = now
         self.max_waits = max_waits
+        # Called with the epoch time it will resume at, just before waiting out a rate limit.
+        self.on_wait: Callable[[float], None] | None = None
 
     def _request(
         self, method: str, url: str, token: str | None = None, **kw: Any
@@ -69,7 +71,10 @@ class StravaClient:
                 return response
             if _over_daily_limit(response):
                 raise RateLimited(daily=True)
-            self.sleep(900 - (self.now() % 900) + 5)  # until just past the next quarter hour
+            wait = 900 - (self.now() % 900) + 5  # until just past the next quarter hour
+            if self.on_wait:
+                self.on_wait(self.now() + wait)
+            self.sleep(wait)
         raise RateLimited(daily=False)
 
     def _json(self, response: httpx.Response) -> Any:

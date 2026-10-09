@@ -46,12 +46,13 @@ Each activity costs two API calls (details + streams) and Strava allows 100 read
 
 | Status | Meaning |
 | --- | --- |
-| `running` | Importing. If it seems stuck, it's waiting out a 15-minute rate-limit window |
+| `running` | Importing. `last_progress_at` shows the last time an activity landed |
+| `waiting for Strava rate limit until HH:MM UTC` | Normal: pausing until the next 15-minute window, then it continues by itself |
 | `done` | All activities in the window are imported |
 | `paused: rate limit…` | Hit Strava's daily cap (1,000 reads). Open `/strava/connect` again after midnight UTC; it skips what's already imported |
 | `failed` | The `error` field says why; paste it into the Claude Code chat |
 
-A redeploy during the import stops it; opening `/strava/connect` again resumes it.
+If the app restarts or redeploys mid-import, it resumes the import by itself on startup.
 
 ## 4. Check the live webhook
 

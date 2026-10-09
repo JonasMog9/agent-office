@@ -3,6 +3,7 @@
 import logging
 import threading
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ from app.ingest.strava import RateLimited, StravaClient, StravaError, workout_fr
 
 log = logging.getLogger(__name__)
 _refresh_lock = threading.Lock()
+_backfill_lock = threading.Lock()  # one import at a time per process
 
 
 class NotConnected(StravaError):
@@ -107,11 +109,30 @@ def backfill(
     """Import the last ``days`` of activities, skipping ones already stored with streams.
 
     Safe to rerun: it resumes where it stopped (after a restart or the daily rate limit).
+    Returns -1 without doing anything if an import is already running in this process.
     """
+    if not _backfill_lock.acquire(blocking=False):
+        return -1
+    try:
+        return _backfill(session_factory, client, days)
+    finally:
+        client.on_wait = None
+        _backfill_lock.release()
+
+
+def _backfill(
+    session_factory: Callable[[], Session], client: StravaClient, days: int | None
+) -> int:
     days = days or get_settings().strava_backfill_days
     after = int(client.now()) - days * 86400
     imported = 0
     with session_factory() as session:
+
+        def waiting(until: float) -> None:
+            at = datetime.fromtimestamp(until, UTC).strftime("%H:%M UTC")
+            _set_backfill(session, f"waiting for Strava rate limit until {at}", imported)
+
+        client.on_wait = waiting
         try:
             _set_backfill(session, "running", 0)
             page = 1
@@ -127,7 +148,10 @@ def backfill(
             _set_backfill(session, "done", imported)
         except RateLimited as err:
             _set_backfill(
-                session, "paused: rate limit, reconnect later to resume", imported, str(err)
+                session,
+                "paused: daily rate limit, resumes on the next restart or reconnect",
+                imported,
+                str(err),
             )
         except Exception as err:  # noqa: BLE001  (record any failure; the thread must not die silently)
             log.exception("Strava backfill failed")
@@ -150,3 +174,11 @@ def ensure_subscription(session: Session, client: StravaClient, callback_url: st
         row.subscription_id = sub_id
         session.commit()
     return sub_id
+
+
+UNFINISHED = ("running", "waiting", "paused")
+
+
+def has_unfinished_backfill(session: Session) -> bool:
+    row = owner_token(session)
+    return row is not None and row.backfill_status.startswith(UNFINISHED)

@@ -330,11 +330,9 @@ def test_backfill_imports_everything_and_skips_what_it_already_has(
     assert backfill(SessionLocal, client) == 0  # nothing new: only the list pages are fetched
     assert all("athlete/activities" in c for c in fake.calls)
     status = api.get("/strava/status").json()
-    assert status["workouts"] == 150 and status["backfill"] == {
-        "status": "done",
-        "imported": 0,
-        "error": None,
-    }
+    assert status["workouts"] == 150
+    assert (status["backfill"]["status"], status["backfill"]["imported"]) == ("done", 0)
+    assert status["backfill"]["last_progress_at"]
 
 
 @pytest.mark.usefixtures("db", "strava_env")
@@ -373,3 +371,65 @@ def test_status_before_connecting(api: TestClient) -> None:
 def test_callback_error_text_is_escaped(api: TestClient) -> None:
     body = api.get("/strava/callback", params={"error": "<script>alert(1)</script>"}).text
     assert "<script>" not in body and "&lt;script&gt;" in body
+
+
+@pytest.mark.usefixtures("db", "strava_env")
+def test_backfill_status_says_when_it_is_waiting_on_the_rate_limit(
+    client: StravaClient, fake: FakeStrava, clock: Clock
+) -> None:
+    connected()
+    fake.activities[1] = activity(1)
+    statuses: list[str] = []
+    real_sleep = client.sleep
+
+    def sleep_and_record(seconds: float) -> None:
+        with SessionLocal() as s:
+            statuses.append(s.get(StravaToken, OWNER).backfill_status)
+        real_sleep(seconds)
+
+    client.sleep = sleep_and_record
+    clock.t = 1_900_000_800  # a quarter-hour boundary: 18:00 UTC, so it waits until 18:15
+    fake.rate_limit_next = ["short"]
+    assert backfill(SessionLocal, client) == 1
+    assert statuses == ["waiting for Strava rate limit until 18:15 UTC"]
+
+
+@pytest.mark.usefixtures("db", "strava_env")
+def test_only_one_backfill_runs_at_a_time(client: StravaClient) -> None:
+    from app.ingest import strava_service
+
+    connected()
+    assert strava_service._backfill_lock.acquire()
+    try:
+        assert backfill(SessionLocal, client) == -1
+    finally:
+        strava_service._backfill_lock.release()
+
+
+@pytest.mark.usefixtures("db", "strava_env")
+@pytest.mark.parametrize(
+    ("status", "resumes"),
+    [
+        ("running", True),
+        ("waiting for Strava rate limit until 10:15 UTC", True),
+        ("paused: daily rate limit, resumes on the next restart or reconnect", True),
+        ("done", False),
+        ("failed", False),
+    ],
+)
+def test_startup_resumes_an_unfinished_import(
+    monkeypatch: pytest.MonkeyPatch, status: str, resumes: bool
+) -> None:
+    connected()
+    with SessionLocal() as s:
+        s.get(StravaToken, OWNER).backfill_status = status
+        s.commit()
+    started: list[object] = []
+    monkeypatch.setattr(strava_routes, "start_backfill", started.append)
+    assert strava_routes.resume_unfinished_backfill() is resumes
+    assert len(started) == int(resumes)
+
+
+@pytest.mark.usefixtures("strava_env")
+def test_startup_resume_never_raises_without_tables() -> None:
+    assert strava_routes.resume_unfinished_backfill() is False
