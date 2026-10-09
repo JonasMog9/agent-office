@@ -55,6 +55,19 @@ def test_missing_inputs_are_reweighted_and_noted() -> None:
     assert any("reweighted" in n for n in r.notes)
 
 
+def test_a_signal_never_recorded_is_left_out_quietly() -> None:
+    r = recovery(day(), history())  # no wrist temperature anywhere, as on older watches
+    assert "wrist_temp" not in {c.name for c in r.components}
+    assert not any("reweighted" in n for n in r.notes)
+    assert any("wrist_temp" in n for n in r.notes)
+
+
+def test_a_tracked_signal_missing_today_is_still_listed() -> None:
+    r = recovery(day(), history(wrist_temp_c=36.0))
+    assert comp(r, "wrist_temp").note == "no reading today"
+    assert any("reweighted" in n for n in r.notes)
+
+
 def test_no_hrv_and_no_resting_hr_means_no_score() -> None:
     r = recovery(day(hrv=None, rhr=None), history())
     assert r.value is None and r.label is None

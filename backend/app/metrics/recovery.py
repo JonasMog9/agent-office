@@ -55,10 +55,16 @@ def recovery(
     notes: list[str] = []
     components: list[Component] = []
     weighted: list[tuple[float, float]] = []  # (weight, z)
+    untracked: list[str] = []  # never recorded, e.g. wrist temperature on older watches
+    untracked_weight = 0.0
 
     for name, (column, transform, sign, weight, floor) in SIGNALS.items():
         value = today.get(column)
         past = [transform(r[column]) for r in history[-BASELINE_DAYS:] if r.get(column)]
+        if value is None and not past:
+            untracked.append(name)
+            untracked_weight += weight
+            continue
         if value is None:
             components.append(Component(name, None, note="no reading today"))
             continue
@@ -114,7 +120,9 @@ def recovery(
         else c
         for c in components
     ]
-    if total_weight < 0.999:
+    if untracked:
+        notes.append(f"Not recorded at all in the baseline window: {', '.join(untracked)}.")
+    if total_weight < 0.999 - untracked_weight:
         notes.append(f"Scored from {', '.join(sorted(used))}; missing inputs were reweighted.")
     score = round(100 * normal_cdf(combined))
     return ScoreResult(score, components, notes, label_for(score))
