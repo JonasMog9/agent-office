@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     athlete_sex: str = "male"  # TRIMP coefficients: "male" or "female"
     max_hr: float | None = None
     sleep_need_min: float = 480
+    # Home time zone (IANA name, e.g. America/New_York). Places nights stored before the
+    # 18:00 night rule; later also the clock for scheduled Telegram pushes.
+    timezone: str = "UTC"
     # Base URL for OAuth/webhook callbacks. Railway sets RAILWAY_PUBLIC_DOMAIN automatically.
     public_base_url: str = ""
     railway_public_domain: str = ""

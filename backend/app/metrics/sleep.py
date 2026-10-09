@@ -1,6 +1,6 @@
 """Sleep: tonight's need, recent debt, last night's performance, and timing consistency.
 
-    debt          = a running balance over the last 14 nights, oldest first:
+    debt          = a running balance over the last 30 nights, oldest first:
                     debt = max(0, debt × 0.85 + base need − time asleep)
                     short nights add to it, long nights pay it off, it never goes below
                     zero (extra sleep can't be banked), and old debt fades by 15% a night
@@ -21,8 +21,11 @@ from statistics import pstdev
 
 from app.metrics.common import Component, ScoreResult
 
+# A "night" this short is almost always a watch that died or came off, not real sleep, so it's
+# scored as a night without data. Daily_metrics keeps the raw number.
+MIN_NIGHT_MIN = 240
 DEBT_NIGHTS = 7  # bedtimes used for consistency
-DEBT_WINDOW = 14  # nights the debt balance runs over; 0.85^14 ≈ 0.1, so older nights barely count
+DEBT_WINDOW = 30  # nights the balance runs over; 0.85^30 ≈ 0.008, so dropping one is invisible
 DEBT_DECAY = 0.85
 STRAIN_EXTRA_MAX_MIN = 45
 DEBT_REPAY_SHARE = 0.25
@@ -82,3 +85,7 @@ def sleep_consistency(bedtimes: Sequence[datetime | None]) -> ScoreResult:
         [Component("bedtime spread (min)", round(spread, 1))],
         [f"Based on {len(starts)} nights."],
     )
+
+
+def usable_night(asleep_min: float | None) -> bool:
+    return asleep_min is not None and asleep_min > MIN_NIGHT_MIN

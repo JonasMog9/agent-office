@@ -26,12 +26,12 @@ def test_missing_nights_add_nothing_but_debt_still_fades() -> None:
     assert r.notes[0] == "Based on 1 of the last 3 nights."
 
 
-def test_debt_only_looks_at_the_last_fourteen_nights() -> None:
-    assert sleep_debt([0] * 3 + [480] * 14, 480).value == 0
+def test_debt_only_looks_at_the_last_thirty_nights() -> None:
+    assert sleep_debt([0] * 3 + [480] * 30, 480).value == 0
 
 
 def test_no_recent_sleep() -> None:
-    r = sleep_debt([None] * 14, 480)
+    r = sleep_debt([None] * 30, 480)
     assert r.value == 0 and "No sleep recorded recently." in r.notes
 
 

@@ -5,9 +5,9 @@ Rules per metric:
 - mean of the day's samples: HRV, resting HR, respiratory rate, wrist temperature, running form
 - latest sample of the day: VO2max
 - sum: active energy (the Shortcut sends it grouped by day, so this is normally one value)
-- sleep: minutes per stage over the night ending that morning. Stages are merged as a union of
-  time intervals, because iPhone and Watch can both record the same night and summing them
-  would double count.
+- sleep: minutes per stage over the night before that morning (from 18:00 the day before).
+  Stages are merged as a union of time intervals, because iPhone and Watch can both record
+  the same night and summing them would double count.
 """
 
 from collections import defaultdict

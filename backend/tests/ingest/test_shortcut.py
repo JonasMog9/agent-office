@@ -49,6 +49,21 @@ def test_sleep_counts_toward_the_morning_it_ends() -> None:
 
 
 @pytest.mark.parametrize(
+    ("start", "end", "day"),
+    [
+        # The first stage of a night that starts before midnight and ends before it too:
+        # it used to land on the evening's date and split the night in two.
+        ("2026-10-04T23:40:00-04:00", "2026-10-04T23:55:00-04:00", date(2026, 10, 5)),
+        ("2026-10-05T01:00:00-04:00", "2026-10-05T06:47:00-04:00", date(2026, 10, 5)),
+        ("2026-10-05T18:00:00-04:00", "2026-10-05T19:00:00-04:00", date(2026, 10, 6)),
+        ("2026-10-05T14:00:00-04:00", "2026-10-05T14:30:00-04:00", date(2026, 10, 5)),  # nap
+    ],
+)
+def test_a_night_starts_at_six_pm(start: str, end: str, day: date) -> None:
+    assert parse_line("sleep", f"{start}|{end}|Core").day == day
+
+
+@pytest.mark.parametrize(
     ("metric", "line", "reason"),
     [
         ("hrv", "2026-10-07T03:00:00|2026-10-07T03:01:00|50", "UTC offset"),
