@@ -5,19 +5,40 @@ import pytest
 from app.metrics.sleep import sleep_consistency, sleep_debt, sleep_need, sleep_performance
 
 
-def test_debt_sums_shortfalls_and_ignores_missing_nights() -> None:
-    r = sleep_debt([480, 420, None, 500, 360], base_need_min=480)
-    assert r.value == 60 + 120  # surplus nights don't cancel debt, missing nights aren't zero
-    assert r.notes[0] == "Based on 4 of the last 7 nights."
+def test_debt_is_a_fading_running_balance() -> None:
+    r = sleep_debt([420, 360], base_need_min=480)
+    assert r.value == pytest.approx(60 * 0.85 + 120)
+    assert [c.contribution for c in r.components] == [60.0, 120.0]
 
 
-def test_debt_only_looks_at_the_last_seven_nights() -> None:
-    assert sleep_debt([0] * 3 + [480] * 7, 480).value == 0
+def test_long_nights_pay_debt_back() -> None:
+    # 120 short, then 60 long: 120 × 0.85 − 60 = 42 left, not 120 as a plain sum of shortfalls
+    assert sleep_debt([360, 540], 480).value == pytest.approx(42)
+
+
+def test_debt_never_goes_below_zero_so_sleep_cant_be_banked() -> None:
+    assert sleep_debt([600, 600, 420], 480).value == 60
+
+
+def test_missing_nights_add_nothing_but_debt_still_fades() -> None:
+    r = sleep_debt([360, None, None], 480)
+    assert r.value == pytest.approx(120 * 0.85**2)
+    assert r.notes[0] == "Based on 1 of the last 3 nights."
+
+
+def test_debt_only_looks_at_the_last_fourteen_nights() -> None:
+    assert sleep_debt([0] * 3 + [480] * 14, 480).value == 0
 
 
 def test_no_recent_sleep() -> None:
-    r = sleep_debt([None] * 7, 480)
+    r = sleep_debt([None] * 14, 480)
     assert r.value == 0 and "No sleep recorded recently." in r.notes
+
+
+def test_good_week_after_a_bad_one_clears_most_of_the_debt() -> None:
+    bad_week, good_week = [360] * 7, [510] * 7
+    assert sleep_debt(bad_week, 480).value > 500
+    assert sleep_debt(bad_week + good_week, 480).value < 60
 
 
 def test_need_adds_strain_and_part_of_the_debt() -> None:
