@@ -135,7 +135,7 @@ class Workout(Base):
 
 
 class DailyScore(Base):
-    """Recovery, strain and sleep for one day, recomputed whenever its inputs change.
+    """Recovery, strain, sleep and training load for one day, recomputed as inputs change.
 
     ``details`` holds every score's component breakdown (the "reasons") for the agents.
     """
@@ -153,6 +153,13 @@ class DailyScore(Base):
     hr_rest_used: Mapped[float | None] = mapped_column(Float)
     hr_max_used: Mapped[float | None] = mapped_column(Float)
     details: Mapped[dict] = mapped_column(JSON)
+    # Training load (coach.load): rebuilt over the whole history whenever scores change.
+    trimp: Mapped[float | None] = mapped_column(Float)
+    ctl: Mapped[float | None] = mapped_column(Float)  # fitness
+    atl: Mapped[float | None] = mapped_column(Float)  # fatigue
+    form: Mapped[float | None] = mapped_column(Float)  # yesterday's CTL − ATL
+    acwr: Mapped[float | None] = mapped_column(Float)
+    load_details: Mapped[dict | None] = mapped_column(JSON)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

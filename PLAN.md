@@ -149,8 +149,8 @@ Done when the Gmail-triggered shortcut and Strava both land real data every day 
 
 ### Phase 2b: Running coach engine
 
-- [ ] Training load: daily TRIMP, CTL/ATL/form, and ACWR, with overtraining and injury-risk flags.
-- [ ] HR zones (Karvonen) and pace zones from VDOT.
+- [x] Training load: daily TRIMP, CTL/ATL/form, and ACWR, with overtraining and injury-risk flags.
+- [x] HR zones (Karvonen) and pace zones from VDOT.
 - [ ] Race predictor: VDOT from best recent efforts, Riegel scaling, the VO2max cross-check, and a mileage adjustment for the marathon. Log every prediction to a `predictions` table.
 - [ ] ML race predictor (scikit-learn), next to the formula one:
   - Train a regression model (start with ridge and gradient boosting) on a public dataset of many runners' training features (weekly mileage, long runs, recent race times) and marathon results. Your own handful of races is far too little to train on.
