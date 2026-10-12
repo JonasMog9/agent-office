@@ -23,6 +23,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.coach.load import load_series, training_load
+from app.coach.service import update_predictions
 from app.config import get_settings
 from app.db.models import DailyMetric, DailyScore, Workout
 from app.db.upsert import insert_for
@@ -187,6 +188,7 @@ def recompute_scores(session: Session, days: Iterable[date]) -> int:
             )
         )
     update_training_load(session)
+    update_predictions(session, days)
     session.commit()
     return len(days)
 
