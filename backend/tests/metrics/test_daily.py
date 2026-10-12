@@ -174,3 +174,16 @@ def test_a_night_of_four_hours_or_less_counts_as_no_data() -> None:
     assert "191 min" in short.details["sleep_ignored"]
     sleep = next(c for c in short.details["recovery"]["components"] if c["name"] == "sleep")
     assert sleep["value"] is None
+
+
+@pytest.mark.usefixtures("db")
+def test_training_load_is_stored_and_runs_over_the_whole_history() -> None:
+    seed()
+    with SessionLocal() as s:
+        recompute_scores(s, [END - timedelta(days=i) for i in range(30)])
+    run_day, after = score(date(2026, 10, 7)), score(END)
+    assert run_day.trimp > 0 and after.trimp == 0
+    assert after.ctl > 0 and after.atl > after.ctl  # one hard day: fatigue above fitness
+    assert after.form == pytest.approx(run_day.ctl - run_day.atl, abs=0.11)  # yesterday's
+    assert after.acwr is not None  # 30 days stored, so the 28-day window is full
+    assert after.load_details["components"][0]["name"] == "fitness (CTL)"

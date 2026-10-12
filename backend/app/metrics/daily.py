@@ -19,9 +19,10 @@ from collections.abc import Iterable
 from datetime import date, timedelta
 from statistics import median
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from app.coach.load import load_series, training_load
 from app.config import get_settings
 from app.db.models import DailyMetric, DailyScore, Workout
 from app.db.upsert import insert_for
@@ -146,6 +147,7 @@ def compute_day(session: Session, day: date, hr_max: float | None) -> dict:
         "recovery": rec.value,
         "recovery_label": rec.label,
         "strain": strain.value,
+        "trimp": round(sum(c.contribution or 0 for c in strain.components), 1),
         "sleep_need_min": need.value,
         "sleep_debt_min": debt.value,
         "sleep_performance": performance.value,
@@ -184,8 +186,33 @@ def recompute_scores(session: Session, days: Iterable[date]) -> int:
                 index_elements=["day"], set_=values | {"updated_at": func.now()}
             )
         )
+    update_training_load(session)
     session.commit()
     return len(days)
+
+
+def update_training_load(session: Session) -> None:
+    """Rebuild CTL/ATL/form/ACWR for every stored day. Each depends on all earlier days."""
+    trimp_by_day = dict(session.execute(select(DailyScore.day, DailyScore.trimp)).all())
+    if not trimp_by_day:
+        return
+    first, last = min(trimp_by_day), max(trimp_by_day)
+    days = [first + timedelta(days=i) for i in range((last - first).days + 1)]
+    trimps = [trimp_by_day.get(d) for d in days]
+    for i, (d, load) in enumerate(zip(days, load_series(trimps), strict=True)):
+        if d not in trimp_by_day:
+            continue
+        session.execute(
+            update(DailyScore)
+            .where(DailyScore.day == d)
+            .values(
+                ctl=round(load.ctl, 1),
+                atl=round(load.atl, 1),
+                form=round(load.form, 1),
+                acwr=None if load.acwr is None else round(load.acwr, 2),
+                load_details=training_load(trimps[: i + 1]).as_dict(),
+            )
+        )
 
 
 def safe_recompute(session: Session, days: Iterable[date]) -> None:
