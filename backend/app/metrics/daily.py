@@ -122,7 +122,6 @@ def compute_day(session: Session, day: date, hr_max: float | None) -> dict:
     past_rhr = [h["resting_hr_bpm"] for h in history if h.get("resting_hr_bpm")]
     hr_rest = today.get("resting_hr_bpm") or (median(past_rhr) if past_rhr else None)
 
-    rec = recovery(today, history, base_need)
     strain = _strain_for(session, day, hr_rest, hr_max)
     yesterday_strain = _strain_for(session, day - timedelta(days=1), hr_rest, hr_max)
 
@@ -136,6 +135,9 @@ def compute_day(session: Session, day: date, hr_max: float | None) -> dict:
     debt_before = sleep_debt(asleep_nights(day - timedelta(days=1)), base_need)
     need_last_night = sleep_need(base_need, yesterday_strain.value, debt_before.value)
     performance = sleep_performance(today.get("sleep_asleep_min"), need_last_night.value)
+    # Recovery's sleep input uses the same need as sleep performance (incl. debt repayment and
+    # yesterday's strain), so "% of sleep need" is one number everywhere.
+    rec = recovery(today, history, need_last_night.value)
     consistency = sleep_consistency(
         [
             metrics.get(day - timedelta(days=i), {}).get("sleep_start")

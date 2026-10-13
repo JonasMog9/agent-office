@@ -28,8 +28,8 @@ KEY = "morning_push_last_date"
 CHECK_EVERY_S = 300
 PROMPT = (
     "Morning summary for today, for a Telegram message: recovery and why, last night's sleep "
-    "and tonight's need, training load, today's workout from the plan if there is one, and any "
-    "warnings. Five short lines at most."
+    "and tonight's need, training load (fitness, fatigue, form), today's workout from the plan "
+    "if there is one, and any warnings. Five short lines at most."
 )
 _lock = threading.Lock()
 

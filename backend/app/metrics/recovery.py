@@ -120,8 +120,6 @@ def recovery(
         else c
         for c in components
     ]
-    if untracked:
-        notes.append(f"Not recorded at all in the baseline window: {', '.join(untracked)}.")
     if total_weight < 0.999 - untracked_weight:
         notes.append(f"Scored from {', '.join(sorted(used))}; missing inputs were reweighted.")
     score = round(100 * normal_cdf(combined))

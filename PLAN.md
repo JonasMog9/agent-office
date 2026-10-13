@@ -183,7 +183,7 @@ Done when a test script asks the Manager a question and gets a correct answer pl
 
 Claude Code prompt: `Add a Telegram webhook route using python-telegram-bot. Messages from my chat ID go to the Manager agent; the reply goes back to Telegram. Reject all other users.`
 
-Done when you text the bot from your phone and get your score back.
+Done when you text the bot from your phone and get your score back. ✅ Done 2026-10-13: the morning summary arrived on its own, and "How recovered am I?" from the phone came back with the red-day score and its reasons.
 
 ### Phase 5: The pixel office
 
@@ -215,6 +215,7 @@ Problems hit while building this, how they were found, and what fixed them, newe
 
 | Date | Problem | How it showed up / was found | Fix | Lesson |
 | --- | --- | --- | --- | --- |
+| 2026-10-13 | Two different "% of sleep need" for the same night, and talk of wrist temperature the watch can't measure | First Telegram messages: the morning summary said 71% of sleep need, the answer a minute later 78%; the coach mentioned wrist temperature "wasn't recorded" | Recovery's sleep input used the base 8 h need, sleep performance the full need (with debt repayment); both now use the full need. The "not recorded" note that prompted the wrist-temperature remark is gone, and the coach is told the watch can't measure it. Durations now reach the coach as "6 h 12 min" | Two code paths computing "the same" number will drift; compute it once. Every note a tool returns is something the model may repeat |
 | 2026-10-13 | First live agent question: a bare `Internal Server Error` | The owner asked on `/agents/ask` and got only that; nothing to go on from a phone | The page now catches a failed run and shows the error plus the partial event log. That revealed `401 invalid x-api-key`: the key in Railway wasn't valid. A new key (Default workspace) fixed it | Every entry point should report its real error to the (authenticated) owner; a bare 500 cost a round trip twice now (also `/ingest/health` in Phase 2) |
 | 2026-10-13 | The planned agent framework didn't fit the agents | Before writing Phase 3, re-checking the current docs: the Claude Agent SDK is Claude Code as a library (file editing, bash, its own runtime), built for coding agents, while ours only call our own Python tools | Built the agents on the plain Anthropic SDK with tool use: a ~100-line loop (`agents/loop.py`) that emits an office event at every step, strict tool schemas, and server-side refusal fallbacks on the coach | Re-check a framework choice against what the thing actually needs before building on it; the simplest tool that fits is easier to run and to explain |
 | 2026-10-13 | The learned marathon model predicted a *faster* time for less training | A sanity test with made-up weeks of identical short runs: 35 km/week with no 10 km+ day came out faster than 60 km/week. Only 1 of 25,264 training races had no 10 km+ day, so the model had never learned what a missing value meant | A window now needs at least one 10 km+ run, in training and when predicting; otherwise the app says the training is too light for the model and uses the formulas | Check a model on realistic inputs at the edges, and refuse inputs outside what it was trained on rather than extrapolating |
