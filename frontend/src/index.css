@@ -2,11 +2,71 @@
   font-family: system-ui, sans-serif;
   color: #e8e8e8;
   background: #1b1b24;
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
+  background: #1b1b24;
 }
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 12px 16px 32px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+h1 {
+  font-size: 1.3rem;
+  margin: 8px 0;
+}
+
+.pill {
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #343a52;
+}
+.pill.live { background: #2b8a3e; }
+.pill.offline, .pill.connecting { background: #8a6d2b; }
+.pill.locked { background: #a33; }
+
+.office {
+  width: 100%;
+  aspect-ratio: 640 / 400;
+  border-radius: 8px;
+  overflow: hidden;
+  image-rendering: pixelated;
+}
+
+.hint {
+  color: #9aa4b2;
+  font-size: 0.85rem;
+}
+
+.log {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.85rem;
+}
+.log li {
+  padding: 6px 8px;
+  border-left: 3px solid #555;
+  margin-bottom: 4px;
+  background: #23232f;
+  border-radius: 0 4px 4px 0;
+}
+.log li.manager { border-color: #3b5bdb; }
+.log li.health_coach { border-color: #2f9e44; }
+.log li.market_scout { border-color: #f08c00; }
+.log i { color: #9aa4b2; }
+.log .target { color: #9aa4b2; }
+.log .text { margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }

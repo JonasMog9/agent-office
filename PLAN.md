@@ -187,9 +187,9 @@ Done when you text the bot from your phone and get your score back. ✅ Done 202
 
 ### Phase 5: The pixel office
 
-- [ ] Stream the event bus to the browser over a WebSocket (`/ws/events`).
-- [ ] Build the office: either adapt pixel-agents (its core is agent-agnostic) or build a small Phaser 3 scene with a free tileset and three characters. Start with Phaser: you control everything and it's easier to explain in interviews.
-- [ ] Map each event to an animation: walk to a desk, type, show a speech bubble with the message text, go idle.
+- [x] Stream the event bus to the browser over a WebSocket (`/ws/events`): the last 30 events on connect, then live, with a 25 s ping. The bubbles carry health numbers, so the live feed needs `OFFICE_VIEW_KEY`; without it the page plays a demo with made-up numbers.
+- [x] Build the office: either adapt pixel-agents (its core is agent-agnostic) or build a small Phaser 3 scene with a free tileset and three characters. Start with Phaser: you control everything and it's easier to explain in interviews. Done as a Phaser 3 scene drawn entirely in code (room, desks, 12×15 pixel characters), so there's no tileset to license.
+- [x] Map each event to an animation: walk to a desk, type, show a speech bubble with the message text, go idle. Rules in `frontend/src/office/choreography.ts` (unit-tested): walking to an agent visits its desk, walking to the owner goes to the door, idle walks home.
 - [ ] Deploy the frontend to Vercel.
 
 Claude Code prompt: `Build a Phaser 3 scene in frontend/ with an office tilemap and three characters (Manager, Health Coach, Market Scout). Subscribe to /ws/events and drive walk, type, talk and idle animations from the event status. Show speech bubbles with the event text.`
