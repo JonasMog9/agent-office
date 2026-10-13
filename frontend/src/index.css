@@ -40,7 +40,7 @@ h1 {
 
 .office {
   width: 100%;
-  aspect-ratio: 640 / 400;
+  aspect-ratio: 640 / 422;
   border-radius: 8px;
   overflow: hidden;
   image-rendering: pixelated;

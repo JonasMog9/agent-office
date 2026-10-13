@@ -9,7 +9,9 @@ in its own room:
 | Manager (blue) | Command Room | status board with a light per agent, antenna mast |
 | Market Scout (orange) | Trading Desk | candlestick screens, ticker tape |
 
-The Manager flies out through its doorway and along the hallway into the Health Coach's room,
+Each room has a sliding door (it opens as a robot passes) and a short corridor down to a shared
+hallway, which leads to a glowing exit. The Manager flies out through its door and along the
+hallway into the Health Coach's room,
 the Coach's screen flickers while its tools run, answers appear in speech bubbles, and the
 Manager carries the reply to the exit ("to you", i.e. Telegram).
 

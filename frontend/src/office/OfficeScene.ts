@@ -1,7 +1,8 @@
-// The office: three themed rooms on a hallway, with a robot per agent, drawn entirely in code
-// (no image assets, so nothing to license). Events arrive through `play(event)` and each robot
-// acts its own out in order: fly between rooms along the hallway, think, work at its console,
-// talk in a speech bubble, carry answers to the exit, fly home when idle.
+// The office: three themed rooms, each with a sliding door and a corridor down to a shared
+// hallway, and a robot per agent, all drawn in code (no image assets, so nothing to license).
+// Events arrive through `play(event)` and each robot acts its own out in order: fly between
+// rooms through the corridors and hallway, think, work at its console, talk in a speech bubble,
+// carry answers to the exit, fly home when idle.
 
 import Phaser from 'phaser'
 import {
@@ -16,7 +17,10 @@ import {
   type Spot,
 } from './choreography'
 import {
+  DOOR_W,
   EXIT,
+  HALL_BOTTOM,
+  HALL_TOP,
   HALL_Y,
   HEIGHT,
   ROOM_BOTTOM,
@@ -34,7 +38,7 @@ export { HEIGHT, WIDTH }
 
 const PX = 3 // one art pixel on screen
 const SPEED = 170 // robot flying speed, px/s
-const DOOR_W = 54
+const TELEGRAM = 0x229ed9
 
 interface Theme {
   title: string
@@ -105,8 +109,17 @@ interface Robot {
   typing?: Phaser.Time.TimerEvent
 }
 
+interface Door {
+  x: number
+  left: Phaser.GameObjects.Rectangle
+  right: Phaser.GameObjects.Rectangle
+  light: Phaser.GameObjects.Rectangle
+  open: number // 0 shut … 1 fully open
+}
+
 export class OfficeScene extends Phaser.Scene {
   private robots = new Map<AgentId, Robot>()
+  private doors: Door[] = []
 
   constructor() {
     super('office')
@@ -115,6 +128,7 @@ export class OfficeScene extends Phaser.Scene {
   create(): void {
     this.drawHallway()
     for (const id of AGENTS) this.drawRoom(id)
+    for (const id of AGENTS) this.doors.push(this.makeDoor(id))
     for (const id of AGENTS) this.makeTextures(id)
     for (const id of AGENTS) this.robots.set(id, this.makeRobot(id))
     // Robots blink now and then while standing still.
@@ -131,6 +145,18 @@ export class OfficeScene extends Phaser.Scene {
     })
   }
 
+  /** Doors slide open while a robot is passing through. */
+  update(): void {
+    for (const d of this.doors) {
+      const near = [...this.robots.values()].some(
+        (r) => Math.abs(r.sprite.x - d.x) < 34 && r.sprite.y > ROOM_BOTTOM - 70 && r.sprite.y < HALL_TOP + 50,
+      )
+      d.open += ((near ? 1 : 0) - d.open) * 0.2
+      d.left.scaleX = d.right.scaleX = Math.max(0.04, 1 - d.open)
+      d.light.setFillStyle(d.open > 0.5 ? 0x51cf66 : 0xff6b6b)
+    }
+  }
+
   /** Queue one event; each robot acts out its own events in order. */
   play(event: OfficeEvent): void {
     const robot = this.robots.get(event.agent)
@@ -143,17 +169,79 @@ export class OfficeScene extends Phaser.Scene {
 
   private drawHallway(): void {
     const g = this.add.graphics()
-    for (let x = 0; x < WIDTH; x += 20)
-      for (let y = ROOM_BOTTOM; y < HEIGHT; y += 20) {
-        g.fillStyle((x / 20 + y / 20) % 2 ? 0x30303c : 0x2b2b36).fillRect(x, y, 20, 20)
+    // outer wall below the rooms, with windows onto a night sky between the corridors
+    g.fillStyle(0x14141b).fillRect(0, ROOM_BOTTOM, WIDTH, HEIGHT - ROOM_BOTTOM)
+    const edges = [0, ...AGENTS.flatMap((id) => [roomX(id) - DOOR_W / 2 - 3, roomX(id) + DOOR_W / 2 + 3]), WIDTH]
+    for (let i = 0; i < edges.length; i += 2) {
+      const [a, b] = [edges[i] + 12, edges[i + 1] - 12]
+      if (b - a < 20) continue
+      g.fillStyle(0x2b2b36).fillRect(a - 2, ROOM_BOTTOM + 10, b - a + 4, 26)
+      g.fillStyle(0x0b1026).fillRect(a, ROOM_BOTTOM + 12, b - a, 22)
+      for (let k = 0; k < (b - a) / 9; k++) {
+        const star = this.add.rectangle(a + ((k * 37) % (b - a)), ROOM_BOTTOM + 14 + ((k * 13) % 18), 1, 1, 0xffffff)
+        this.tweens.add({ targets: star, alpha: 0.2, duration: 900 + ((k * 211) % 1400), yoyo: true, repeat: -1 })
       }
-    g.fillStyle(0x3a3a48).fillRect(0, HALL_Y + 34, WIDTH, 4) // a runner line along the hall
-    // The exit: answers leave here for the owner's Telegram.
-    g.fillStyle(0x495057).fillRect(EXIT.x - 22, ROOM_BOTTOM + 4, 44, 6)
-    g.fillStyle(0x6b4f3a).fillRect(EXIT.x - 18, ROOM_BOTTOM + 10, 36, 52)
-    g.fillStyle(0xd9b44a).fillCircle(EXIT.x + 10, ROOM_BOTTOM + 38, 2.5)
-    g.fillStyle(0x74c0fc).fillTriangle(EXIT.x - 8, 300, EXIT.x + 9, 293, EXIT.x - 1, 306) // paper plane
-    this.text(EXIT.x, ROOM_BOTTOM + 66, 'TO YOU', '#c8d0dc', 9).setOrigin(0.5, 0)
+      g.fillStyle(0x2b2b36).fillRect((a + b) / 2 - 1, ROOM_BOTTOM + 12, 2, 22) // window bar
+    }
+    // a corridor from each door down to the hallway, floored in its room's colours
+    for (const id of AGENTS) {
+      const t = THEME[id]
+      const cx = roomX(id)
+      for (let y = ROOM_BOTTOM; y < HALL_TOP; y += 9)
+        for (let x = cx - DOOR_W / 2; x < cx + DOOR_W / 2; x += 9)
+          g.fillStyle(((x - cx) / 9 + y / 9) % 2 ? t.floor[0] : t.floor[1]).fillRect(x, y, 9, 9)
+      g.fillStyle(0x2b2b36).fillRect(cx - DOOR_W / 2 - 3, ROOM_BOTTOM, 3, HALL_TOP - ROOM_BOTTOM)
+      g.fillRect(cx + DOOR_W / 2, ROOM_BOTTOM, 3, HALL_TOP - ROOM_BOTTOM)
+      g.fillStyle(t.body).fillRect(cx - DOOR_W / 2 - 3, ROOM_BOTTOM + 18, 3, 6) // wall lights
+      g.fillRect(cx + DOOR_W / 2, ROOM_BOTTOM + 18, 3, 6)
+    }
+    // the hallway: metal floor, ceiling light pools, a glowing guide strip to the exit
+    for (let x = 0; x < WIDTH; x += 20)
+      for (let y = HALL_TOP; y < HALL_BOTTOM; y += 20)
+        g.fillStyle((x / 20 + (y - HALL_TOP) / 20) % 2 ? 0x2a2d38 : 0x262934).fillRect(x, y, 20, 20)
+    g.fillStyle(0x3a3f4f).fillRect(0, HALL_TOP, WIDTH, 3)
+    for (const id of AGENTS) g.fillStyle(THEME[id].floor[1]).fillRect(roomX(id) - DOOR_W / 2, HALL_TOP, DOOR_W, 3)
+    g.fillStyle(0xffffff, 0.02)
+    for (let x = 50; x < WIDTH; x += 110) g.fillEllipse(x, HALL_Y - 10, 90, 60)
+    g.fillStyle(0x3a3f4f).fillRect(0, HALL_BOTTOM, WIDTH, 3)
+    g.fillStyle(0x1b1b24).fillRect(0, HALL_BOTTOM + 3, WIDTH, HEIGHT - HALL_BOTTOM - 3)
+    for (let x = 14; x < WIDTH; x += 28) g.fillStyle(0x2f9e44, 0.5).fillRect(x, HALL_BOTTOM + 9, 6, 2) // floor lights
+    const guideY = HALL_Y + 16
+    g.fillStyle(0x1c7ed6, 0.35).fillRect(12, guideY, EXIT.x - 12, 2)
+    for (let k = 0; k < 5; k++) {
+      const pulse = this.add.rectangle(12, guideY + 1, 8, 2, 0x74c0fc)
+      this.tweens.add({
+        targets: pulse,
+        x: EXIT.x,
+        duration: 3200,
+        delay: k * 640,
+        repeat: -1,
+        onRepeat: () => pulse.setX(12),
+      })
+    }
+    // a plant and a bench to make it feel lived in
+    g.fillStyle(0x6b4f3a).fillRect(14, HALL_TOP + 30, 14, 12)
+    g.fillStyle(0x40c057).fillCircle(21, HALL_TOP + 24, 8).fillCircle(15, HALL_TOP + 20, 5).fillCircle(27, HALL_TOP + 19, 5)
+    g.fillStyle(0x495057).fillRect(roomX('manager') + 52, HALL_TOP + 8, 48, 6)
+    g.fillStyle(0x343a40).fillRect(roomX('manager') + 56, HALL_TOP + 14, 4, 8).fillRect(roomX('manager') + 92, HALL_TOP + 14, 4, 8)
+    // the exit: a glowing portal in the end wall; answers leave here for the owner's Telegram
+    g.fillStyle(0x0b1026).fillRect(WIDTH - 12, HALL_TOP + 14, 12, 66)
+    const portal = this.add.rectangle(WIDTH - 6, HALL_TOP + 47, 8, 62, TELEGRAM)
+    this.tweens.add({ targets: portal, alpha: 0.45, duration: 1100, yoyo: true, repeat: -1 })
+    g.fillStyle(TELEGRAM, 0.12).fillEllipse(WIDTH - 10, HALL_TOP + 47, 60, 90)
+    g.fillStyle(0x101418).fillRoundedRect(EXIT.x - 48, HALL_TOP + 6, 54, 14, 3)
+    this.text(EXIT.x - 21, HALL_TOP + 8, 'TO YOU ✈', '#74c0fc', 9).setOrigin(0.5, 0)
+  }
+
+  private makeDoor(id: AgentId): Door {
+    const x = roomX(id)
+    const half = DOOR_W / 2
+    const g = this.add.graphics()
+    g.fillStyle(THEME[id].body).fillRect(x - half - 4, ROOM_BOTTOM - 6, 4, 12).fillRect(x + half, ROOM_BOTTOM - 6, 4, 12)
+    const panel = (px: number, ox: number) =>
+      this.add.rectangle(px, ROOM_BOTTOM, half, 8, 0x5c677d).setOrigin(ox, 0.5).setStrokeStyle(1, 0x343a40)
+    const light = this.add.rectangle(x, ROOM_BOTTOM - 9, 6, 3, 0xff6b6b)
+    return { x, left: panel(x - half, 0), right: panel(x + half, 1), light, open: 0 }
   }
 
   private drawRoom(id: AgentId): void {
@@ -201,15 +289,16 @@ export class OfficeScene extends Phaser.Scene {
     })
     g.strokePath()
     g.fillStyle(0xff6b6b).fillCircle(x0 + 86, 31, 2)
-    // treadmill
-    g.fillStyle(0x212529).fillRect(x0 + 14, 214, 70, 14)
-    g.fillStyle(0x495057).fillRect(x0 + 14, 228, 70, 4)
-    g.fillStyle(0x868e96).fillRect(x0 + 74, 190, 4, 26).fillRect(x0 + 66, 188, 18, 4)
-    // dumbbell rack
-    g.fillStyle(0x495057).fillRect(x0 + 150, 230, 48, 4)
-    for (const dx of [156, 176]) {
-      g.fillStyle(0x212529).fillRect(x0 + dx, 222, 4, 8).fillRect(x0 + dx + 12, 222, 4, 8)
-      g.fillStyle(0xadb5bd).fillRect(x0 + dx + 4, 225, 8, 2)
+    // treadmill in the bottom-left corner, clear of the name label
+    g.fillStyle(0x212529).fillRect(x0 + 12, 238, 62, 12)
+    g.fillStyle(0x495057).fillRect(x0 + 12, 250, 62, 4)
+    g.fillStyle(0x868e96).fillRect(x0 + 12, 214, 4, 26).fillRect(x0 + 12, 212, 18, 4)
+    g.fillStyle(0x51cf66).fillRect(x0 + 18, 213, 6, 2)
+    // dumbbell rack along the back wall
+    g.fillStyle(0x495057).fillRect(x0 + 128, 96, 48, 4)
+    for (const dx of [134, 154]) {
+      g.fillStyle(0x212529).fillRect(x0 + dx, 88, 4, 8).fillRect(x0 + dx + 12, 88, 4, 8)
+      g.fillStyle(0xadb5bd).fillRect(x0 + dx + 4, 91, 8, 2)
     }
     // water bottle
     g.fillStyle(0x74c0fc).fillRect(x0 + 186, 78, 10, 18)
@@ -249,10 +338,19 @@ export class OfficeScene extends Phaser.Scene {
     }
     // ticker strip (decoration only: the Scout's real briefs come in Phase 6)
     g.fillStyle(0x101418).fillRect(x0 + 6, 66, ROOM_W - 12, 10)
-    this.text(x0 + 10, 66, '▲ BTC  ▼ ETH  ▲ SOL  ▲ DOGE', '#ffd43b', 8)
+    const ticker = this.text(x0 + ROOM_W, 66, '▲ BTC  ▼ ETH  ▲ SOL  ▲ DOGE  ▼ PEPE', '#ffd43b', 8)
+    const clip = this.make.graphics({}, false).fillRect(x0 + 6, 66, ROOM_W - 12, 10)
+    ticker.setMask(clip.createGeometryMask())
+    this.tweens.add({
+      targets: ticker,
+      x: x0 - ticker.width,
+      duration: 9000,
+      repeat: -1,
+      onRepeat: () => ticker.setX(x0 + ROOM_W),
+    })
     // a second desk with a laptop
-    g.fillStyle(0x6b4f3a).fillRect(x0 + 150, 222, 52, 14)
-    g.fillStyle(0xadb5bd).fillRect(x0 + 164, 214, 22, 8)
+    g.fillStyle(0x6b4f3a).fillRect(x0 + 10, 222, 52, 14)
+    g.fillStyle(0xadb5bd).fillRect(x0 + 24, 214, 22, 8)
   }
 
   private text(x: number, y: number, s: string, color: string, size: number): Phaser.GameObjects.Text {

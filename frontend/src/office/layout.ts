@@ -1,14 +1,17 @@
-// The office floor plan: three rooms side by side, each with a doorway onto a shared hallway,
-// and the exit ("to you") at the hallway's right end. Pure geometry, so paths are testable.
+// The office floor plan: three rooms side by side, each with a sliding door and a short corridor
+// down to a shared hallway, and the exit ("to you") at the hallway's right end. Pure geometry, so paths are testable.
 
 import type { AgentId, Spot } from './choreography'
 
 export const WIDTH = 640
-export const HEIGHT = 400
+export const HEIGHT = 422
 export const ROOM_W = WIDTH / 3
-export const ROOM_BOTTOM = 276 // inner bottom wall of the rooms; the hallway is below it
-export const HALL_Y = 335 // the line robots travel along in the hallway
-export const EXIT = { x: 604, y: 312 }
+export const ROOM_BOTTOM = 276 // the rooms' bottom wall, with a door at each room's centre
+export const DOOR_W = 54
+export const HALL_TOP = 318 // the corridors run from the doors down to here
+export const HALL_BOTTOM = 404
+export const HALL_Y = 366 // the line robots fly along in the hallway
+export const EXIT = { x: 604, y: 360 }
 
 export const ROOM_ORDER: AgentId[] = ['health_coach', 'manager', 'market_scout']
 
@@ -26,7 +29,7 @@ export function roomX(agent: AgentId): number {
   return ROOM_W * roomOf(agent) + ROOM_W / 2
 }
 
-/** The room a point is in, or null when it's in the hallway. */
+/** The room a point is in, or null when it's in a corridor or the hallway. */
 export function roomAt(p: Point): AgentId | null {
   if (p.y >= ROOM_BOTTOM) return null
   return ROOM_ORDER[Math.min(2, Math.max(0, Math.floor(p.x / ROOM_W)))]
