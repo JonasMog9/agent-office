@@ -5,6 +5,8 @@ from a phone. Protected by the ingest secret, like the Apple Health upload page.
 """
 
 import hmac
+import logging
+import uuid
 from html import escape
 from typing import Annotated
 
@@ -16,6 +18,7 @@ from app.agents.team import ask_manager
 from app.config import get_settings
 from app.db.session import SessionLocal
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents")
 
 FORM = """<!doctype html><meta name=viewport content='width=device-width'>
@@ -52,17 +55,30 @@ def ask(secret: Annotated[str, Form()], question: Annotated[str, Form()]) -> HTM
         return _page("<h2>Wrong secret</h2>", 401)
     if not get_settings().anthropic_api_key:
         return _page("<h2>ANTHROPIC_API_KEY is not set in Railway</h2>", 500)
-    result = ask_manager(anthropic_client(), SessionLocal, question[:2000])
-    run = bus.recent()[-1].run_id if bus.recent() else None
+    run = uuid.uuid4().hex[:12]
+    try:
+        result = ask_manager(anthropic_client(), SessionLocal, question[:2000], run_id=run)
+    except Exception as err:  # noqa: BLE001  (show the owner what broke instead of a bare 500)
+        log.exception("Agent run failed")
+        detail = escape(f"{type(err).__name__}: {str(err)[:600]}")
+        return _page(
+            f"<h2>The agents hit an error</h2><p><code>{detail}</code></p>"
+            f"{_log_table(run)}<p><a href=/agents/ask>Try again</a></p>",
+            500,
+        )
+    answer = escape(result.text).replace("\n", "<br>")
+    return _page(
+        f"<h2>Answer</h2><p>{answer}</p>{_log_table(run)}<p><a href=/agents/ask>Ask another</a></p>"
+    )
+
+
+def _log_table(run: str) -> str:
     rows = "".join(
         f"<tr><td>{e.id}</td><td>{escape(e.agent)}</td><td>{escape(e.status)}</td>"
         f"<td>{escape(e.target or '')}</td><td>{escape(e.text)}</td></tr>"
         for e in bus.recent(run)
     )
-    answer = escape(result.text).replace("\n", "<br>")
-    return _page(
-        f"<h2>Answer</h2><p>{answer}</p><h3>Event log</h3>"
-        f"<table border=1 cellpadding=4><tr><th>#</th><th>agent</th><th>status</th>"
-        f"<th>target</th><th>text</th></tr>{rows}</table>"
-        f"<p><a href=/agents/ask>Ask another</a></p>"
+    return (
+        f"<h3>Event log</h3><table border=1 cellpadding=4><tr><th>#</th><th>agent</th>"
+        f"<th>status</th><th>target</th><th>text</th></tr>{rows}</table>"
     )

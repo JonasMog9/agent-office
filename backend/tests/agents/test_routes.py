@@ -29,3 +29,16 @@ def test_answer_and_event_log_are_escaped(keys: str, monkeypatch: pytest.MonkeyP
     assert r.status_code == 200
     assert "Hello &lt;b&gt;owner&lt;/b&gt;" in r.text and "<script>x" not in r.text
     assert "talking" in r.text
+
+
+def test_an_api_error_is_shown_not_a_bare_500(keys: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    class Broken:
+        class messages:  # noqa: N801
+            @staticmethod
+            def create(**kwargs):  # noqa: ANN003, ANN205
+                raise RuntimeError("invalid model: claude-haiku-5-5")
+
+    monkeypatch.setattr(routes, "anthropic_client", lambda: Broken())
+    r = TestClient(app).post("/agents/ask", data={"secret": keys, "question": "hi"})
+    assert r.status_code == 500
+    assert "RuntimeError: invalid model" in r.text and "thinking" in r.text  # partial log too
