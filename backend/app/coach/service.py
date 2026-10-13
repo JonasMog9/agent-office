@@ -1,4 +1,4 @@
-"""Store coach outputs that are worth keeping over time (race predictions)."""
+"""Store coach outputs that are worth keeping over time (race predictions, fitness)."""
 
 from collections.abc import Iterable
 from datetime import date, timedelta
@@ -6,11 +6,31 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.coach.fitness import WINDOW_DAYS, Segment, fitness, segments
 from app.coach.predict import RUN_TYPES, predict_races
-from app.db.models import DailyMetric, Prediction, Workout
+from app.db.models import DailyMetric, DailyScore, Prediction, Workout
 from app.db.upsert import insert_for
 
 VO2MAX_MAX_AGE_DAYS = 30
+# Steady segments per run, keyed by (workout id, updated_at). Cutting segments means reading
+# the full streams, so it's done once per run version instead of on every recompute.
+_segment_cache: dict[tuple, list[Segment]] = {}
+
+
+def run_segments(session: Session, since: date, until: date) -> list[Segment]:
+    keys = session.execute(
+        select(Workout.id, Workout.updated_at).where(
+            Workout.sport_type.in_(RUN_TYPES), Workout.day.between(since, until)
+        )
+    ).all()
+    missing = [wid for wid, updated in keys if (wid, updated) not in _segment_cache]
+    for wid, day, streams, updated in session.execute(
+        select(Workout.id, Workout.day, Workout.streams, Workout.updated_at)
+        .where(Workout.id.in_(missing))
+        .execution_options(yield_per=20)
+    ):
+        _segment_cache[(wid, updated)] = segments(wid, day, streams or {})
+    return [seg for key in keys for seg in _segment_cache.get(tuple(key), [])]
 
 
 def update_predictions(session: Session, days: Iterable[date]) -> int:
@@ -35,16 +55,27 @@ def update_predictions(session: Session, days: Iterable[date]) -> int:
             select(DailyMetric.day, DailyMetric.vo2max).where(DailyMetric.vo2max.is_not(None))
         ).all()
     )
+    segs = run_segments(session, days[0] - timedelta(days=WINDOW_DAYS), days[-1])
+    hr = {
+        d: (rest, mx)
+        for d, rest, mx in session.execute(
+            select(DailyScore.day, DailyScore.hr_rest_used, DailyScore.hr_max_used).where(
+                DailyScore.day.between(days[0], days[-1])
+            )
+        )
+    }
     for day in days:
         recent = [v for d, v in vo2 if day - timedelta(days=VO2MAX_MAX_AGE_DAYS) < d <= day]
-        for distance, result in predict_races(runs, recent[-1] if recent else None, day).items():
+        fit = fitness(segs, *hr.get(day, (None, None)), day)
+        predictions = predict_races(runs, recent[-1] if recent else None, day, fit.value)
+        for distance, result in predictions.items():
             rng = next((c for c in result.components if c.name == "range"), None)
             values = {
                 "predicted_s": result.value,
                 "low_s": rng.value if rng else None,
                 "high_s": rng.baseline if rng else None,
                 "confidence": result.label,
-                "details": result.as_dict(),
+                "details": result.as_dict() | {"fitness": fit.as_dict()},
             }
             stmt = insert_for(session, Prediction).values(day=day, distance=distance, **values)
             session.execute(

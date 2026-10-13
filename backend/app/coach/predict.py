@@ -10,13 +10,19 @@ Methods (each one a component of the result, so the coach can say where a number
                 K = mean weekly km and P = mean training pace (s/km) over the last 8 weeks
                 (Tanda 2011). It's the mileage adjustment: low volume gives a slower marathon.
 
-The estimate is the median of the methods available, and the range spans them, widened by 2%
-(5% when only one method is left), since even a good formula misses by a few percent.
+    HR model    marathon and the rest: the VDOT the personal fitness model infers from the
+                pace you hold at a given heart rate (coach.fitness). Works from easy runs, so
+                it's the one to lean on when there's no recent race.
+
+Methods are grouped by source so one input can't vote twice: VDOT and Riegel both come from
+the same effort and count as one "effort" source (their mean). The estimate is the median of
+the sources. The range is the estimate ± 3% (high confidence), ± 5% (medium) or ± 8% (low),
+and a note names the spread when the sources disagree by more than 15%.
 
 Efforts are Strava's best efforts of 5K and longer inside runs, plus whole runs marked as a
 race. Shorter best efforts (400 m, 1K, mile) would overstate endurance and are skipped.
-Confidence: high with a race in the last 8 weeks, medium with only training best efforts
-(rarely all-out, so they understate fitness), low with neither.
+Confidence: high with a race in the last 8 weeks; medium with training best efforts (rarely
+all-out, so they understate fitness) or the HR model; low with neither.
 """
 
 import math
@@ -95,14 +101,23 @@ def tanda_marathon_s(weekly_km: float, pace_s_per_km: float) -> float:
     return (17.1 + 140.0 * math.exp(-0.0053 * weekly_km) + 0.55 * pace_s_per_km) * 42.195
 
 
+MARGINS = {"high": 0.03, "medium": 0.05, "low": 0.08}
+DISAGREEMENT = 0.15
+
+
 def predict_races(
-    runs: Sequence[Mapping], vo2max: float | None, as_of: date
+    runs: Sequence[Mapping], vo2max: float | None, as_of: date, hr_vdot: float | None = None
 ) -> dict[str, ScoreResult]:
     """One result per race distance. Value = estimate in seconds, label = confidence."""
     found = efforts(runs, as_of)
     best = max(found, key=lambda e: e.vdot, default=None)
     weekly_km, pace = training_volume(runs, as_of)
-    confidence = "high" if any(e.is_race for e in found) else "medium" if best else "low"
+    if any(e.is_race for e in found):
+        confidence = "high"
+    elif best or hr_vdot:
+        confidence = "medium"
+    else:
+        confidence = "low"
 
     results = {}
     for race in RACES:
@@ -128,6 +143,15 @@ def predict_races(
                     note="Apple estimate as VDOT",
                 )
             )
+        if hr_vdot:
+            comps.append(
+                Component(
+                    "HR model",
+                    round(race_time_s(hr_vdot, target)),
+                    hr_vdot,
+                    note="VDOT from your pace at heart rate (personal fitness model)",
+                )
+            )
         if race == "marathon" and pace and weekly_km >= 10:
             comps.append(
                 Component(
@@ -136,21 +160,40 @@ def predict_races(
                     note=f"{weekly_km:.0f} km/week at {format_pace(pace)}/km, last 8 weeks",
                 )
             )
-        times = [c.value for c in comps]
-        if not times:
+        if not comps:
             results[race] = ScoreResult(
                 None, notes=["No efforts, VO2max or mileage to predict from."]
             )
             continue
-        margin = 0.05 if len(times) == 1 else 0.02
-        low, high = min(times) * (1 - margin), max(times) * (1 + margin)
-        comps.append(Component("range", round(low), round(high), note="fastest – slowest"))
+        sources: dict[str, list[float]] = {}
+        for c in comps:
+            sources.setdefault("effort" if c.name in ("VDOT", "Riegel") else c.name, []).append(
+                c.value
+            )
+        by_source = {name: statistics.fmean(v) for name, v in sources.items()}
+        estimate = statistics.median(by_source.values())
+        margin = MARGINS[confidence]
+        comps.append(
+            Component(
+                "range",
+                round(estimate * (1 - margin)),
+                round(estimate * (1 + margin)),
+                note=f"estimate ± {margin:.0%} ({confidence} confidence)",
+            )
+        )
         notes = []
+        fastest = min(by_source, key=by_source.get)
+        slowest = max(by_source, key=by_source.get)
+        if by_source[slowest] > by_source[fastest] * (1 + DISAGREEMENT):
+            notes.append(
+                f"Methods disagree: {fmt_time(by_source[fastest])} ({fastest}) to "
+                f"{fmt_time(by_source[slowest])} ({slowest})."
+            )
         if confidence == "low":
             notes.append(
                 "No hard effort in the last 8 weeks: a race or time trial would sharpen this."
             )
-        elif confidence == "medium":
+        elif confidence == "medium" and not hr_vdot:
             notes.append(
                 "Based on training best efforts, which are rarely all-out; likely conservative."
             )
@@ -158,5 +201,12 @@ def predict_races(
             notes.append(
                 f"Only {weekly_km:.0f} km/week lately; long races need more volume than that."
             )
-        results[race] = ScoreResult(round(statistics.median(times)), comps, notes, confidence)
+        results[race] = ScoreResult(round(estimate), comps, notes, confidence)
     return results
+
+
+def fmt_time(seconds: float) -> str:
+    s = round(seconds)
+    return (
+        f"{s // 3600}:{s % 3600 // 60:02d}:{s % 60:02d}" if s >= 3600 else f"{s // 60}:{s % 60:02d}"
+    )
