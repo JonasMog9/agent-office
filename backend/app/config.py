@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # Morning summary on Telegram: sent once a day when today's health data has landed (the
     # Shortcut runs when you open Gmail), but not before EARLIEST, and at FALLBACK even if the
     # data never came.
+    # The office page's live feed shows health numbers in its speech bubbles, so it needs
+    # this key (the page sends it as ?key=); unset means only the demo works.
+    office_view_key: str = ""
     morning_push_earliest_hour: int = 6
     morning_push_fallback_hour: int = 10
     # Base URL for OAuth/webhook callbacks. Railway sets RAILWAY_PUBLIC_DOMAIN automatically.

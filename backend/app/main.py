@@ -17,6 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.agents.routes import router as agents_router
+from app.agents.ws import router as ws_router
 from app.config import get_settings
 from app.db.session import SessionLocal, get_session
 from app.ingest.apple_routes import router as apple_router
@@ -66,6 +67,7 @@ app.include_router(strava_router)
 app.include_router(apple_router)
 app.include_router(agents_router)
 app.include_router(telegram_router)
+app.include_router(ws_router)
 
 
 @app.get("/health")
