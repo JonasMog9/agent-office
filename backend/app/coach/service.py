@@ -7,7 +7,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.coach.fitness import WINDOW_DAYS, Segment, fitness, segments
+from app.coach.ml.model import predict_marathon
 from app.coach.predict import RUN_TYPES, predict_races
+from app.config import get_settings
 from app.db.models import DailyMetric, DailyScore, Prediction, Workout
 from app.db.upsert import insert_for
 
@@ -64,10 +66,12 @@ def update_predictions(session: Session, days: Iterable[date]) -> int:
             )
         )
     }
+    male = get_settings().athlete_sex == "male"
     for day in days:
         recent = [v for d, v in vo2 if day - timedelta(days=VO2MAX_MAX_AGE_DAYS) < d <= day]
         fit = fitness(segs, *hr.get(day, (None, None)), day)
-        predictions = predict_races(runs, recent[-1] if recent else None, day, fit.value)
+        ml = predict_marathon(runs, day, male)
+        predictions = predict_races(runs, recent[-1] if recent else None, day, fit.value, ml)
         for distance, result in predictions.items():
             rng = next((c for c in result.components if c.name == "range"), None)
             values = {

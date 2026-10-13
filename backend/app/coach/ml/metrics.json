@@ -1,0 +1,53 @@
+{
+  "cv": {
+    "Ridge": {
+      "mae_min": 15.202339853875063,
+      "median_ae_min": 11.215308591038735,
+      "n": 25263,
+      "mae_min_common": 15.202339853875063
+    },
+    "GBM": {
+      "mae_min": 14.425074874084387,
+      "median_ae_min": 10.417102205836073,
+      "n": 25263,
+      "mae_min_common": 14.425074874084387
+    },
+    "Tanda": {
+      "mae_min": 19.52575951014228,
+      "median_ae_min": 14.24245020283891,
+      "n": 25263,
+      "mae_min_common": 19.52575951014228
+    },
+    "Riegel": {
+      "mae_min": 16.470789965028896,
+      "median_ae_min": 11.157466260953498,
+      "n": 25263,
+      "mae_min_common": 16.470789965028896
+    },
+    "VDOT": {
+      "mae_min": 16.67273411598563,
+      "median_ae_min": 11.269157621340383,
+      "n": 25263,
+      "mae_min_common": 16.67273411598563
+    },
+    "range_80": {
+      "coverage": 0.7724735779598623,
+      "mean_width_min": 41.858372491084765
+    }
+  },
+  "chosen": "GBM",
+  "best_baseline": "Riegel",
+  "keep_baseline": false,
+  "features": [
+    "weekly_km",
+    "pace_s_per_km",
+    "long_run_km",
+    "runs_30k",
+    "run_days_per_week",
+    "recent_share",
+    "best_pace_10k",
+    "male"
+  ],
+  "n_races": 25263,
+  "n_runners": 16778
+}

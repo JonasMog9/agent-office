@@ -106,9 +106,13 @@ DISAGREEMENT = 0.15
 
 
 def predict_races(
-    runs: Sequence[Mapping], vo2max: float | None, as_of: date, hr_vdot: float | None = None
+    runs: Sequence[Mapping],
+    vo2max: float | None,
+    as_of: date,
+    hr_vdot: float | None = None,
+    ml_marathon: tuple[float, float, float] | str | None = None,
 ) -> dict[str, ScoreResult]:
-    """One result per race distance. Value = estimate in seconds, label = confidence."""
+    """``ml_marathon``: the learned model's (minutes, p10, p90), or why it gave none."""
     found = efforts(runs, as_of)
     best = max(found, key=lambda e: e.vdot, default=None)
     weekly_km, pace = training_volume(runs, as_of)
@@ -160,6 +164,21 @@ def predict_races(
                     note=f"{weekly_km:.0f} km/week at {format_pace(pace)}/km, last 8 weeks",
                 )
             )
+        ml_note = None
+        if race == "marathon" and isinstance(ml_marathon, tuple):
+            minutes, p10, p90 = ml_marathon
+            comps.append(
+                Component(
+                    "ML",
+                    round(minutes * 60),
+                    note=(
+                        f"gradient boosting trained on 25k marathons; its own 80% range "
+                        f"{fmt_time(p10 * 60)}–{fmt_time(p90 * 60)}"
+                    ),
+                )
+            )
+        elif race == "marathon" and isinstance(ml_marathon, str):
+            ml_note = ml_marathon
         if not comps:
             results[race] = ScoreResult(
                 None, notes=["No efforts, VO2max or mileage to predict from."]
@@ -197,6 +216,8 @@ def predict_races(
             notes.append(
                 "Based on training best efforts, which are rarely all-out; likely conservative."
             )
+        if ml_note:
+            notes.append(ml_note)
         if weekly_km < 30 and race in ("half marathon", "marathon"):
             notes.append(
                 f"Only {weekly_km:.0f} km/week lately; long races need more volume than that."

@@ -35,7 +35,7 @@ from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from app.coach.ml.features import FEATURES, Day, find_races
+from app.coach.ml.features import FEATURES, RACE_KM, RACE_MINUTES, Day, find_races
 from app.coach.predict import riegel, tanda_marathon_s
 from app.coach.vdot import DISTANCES_M, race_time_s, vdot
 
@@ -49,8 +49,13 @@ def load_races(paths: list[str]) -> tuple[np.ndarray, np.ndarray, np.ndarray, li
     """(X, y minutes, runner groups, raw feature dicts) from BMClab daily parquet files."""
     import pandas as pd  # training-only dependency
 
-    df = pd.concat([pd.read_parquet(p) for p in paths], ignore_index=True)
+    cols = ["datetime", "athlete", "distance", "duration", "gender"]
+    df = pd.concat([pd.read_parquet(p, columns=cols) for p in paths], ignore_index=True)
     df = df[(df["distance"] > 0) & (df["duration"] > 0)]
+    # Only runners with at least one possible race day need their history turned into Days.
+    km, minutes = df["distance"], df["duration"]
+    candidate = km.between(*RACE_KM) & minutes.between(*RACE_MINUTES)
+    df = df[df["athlete"].isin(df.loc[candidate, "athlete"].unique())]
     rows, y, groups = [], [], []
     for athlete, g in df.groupby("athlete", sort=True):
         male = str(g["gender"].iloc[0]).upper().startswith("M")
@@ -156,6 +161,15 @@ def report(metrics: dict, n_races: int, n_runners: int) -> str:
             if metrics["keep_baseline"]
             else f"It beats the best formula ({metrics['best_baseline']}) on the same races."
         ),
+    ]
+    lines += [
+        "",
+        "Reproduce: `python -m app.coach.ml.train --data run_ww_2019_d.parquet "
+        "run_ww_2020_d.parquet` (seeded, so the numbers match).",
+        "",
+        "Data: Afonseca, L., Watanabe, R. N. & Duarte, M. (2021). *A public dataset on "
+        "long-distance running training in 2019 and 2020.* figshare. "
+        "https://doi.org/10.6084/m9.figshare.16620238.v5 (CC BY 4.0).",
     ]
     return "\n".join(lines) + "\n"
 

@@ -17,7 +17,8 @@ only, since that's all the dataset has and all that's needed to apply it to you:
     best_pace_10k                 fastest pace on a 10 km+ day (s/km)
     male                          1 or 0
 
-A window needs 8+ run days and 20+ km a week to count; below that there's nothing to learn from.
+A window needs 8+ run days, 20+ km a week and one 10 km+ day to count; below that there's
+nothing to learn from (and too few such races to learn what it would mean).
 """
 
 from collections.abc import Sequence
@@ -69,8 +70,10 @@ def window_features(days: Sequence[Day], race_day: date, male: bool) -> dict | N
     weeks = WINDOW_DAYS / 7
     if len(window) < MIN_RUN_DAYS or km / weeks < MIN_WEEKLY_KM:
         return None
-    recent_start = race_day - timedelta(days=WINDOW_DAYS // 2)
     long_days = [d for d in window if d.km >= 10]
+    if not long_days:
+        return None
+    recent_start = race_day - timedelta(days=WINDOW_DAYS // 2)
     return {
         "weekly_km": km / weeks,
         "pace_s_per_km": sum(d.minutes for d in window) * 60 / km,
@@ -78,12 +81,10 @@ def window_features(days: Sequence[Day], race_day: date, male: bool) -> dict | N
         "runs_30k": sum(d.km >= 30 for d in window),
         "run_days_per_week": len(window) / weeks,
         "recent_share": sum(d.km for d in window if d.day >= recent_start) / km,
-        "best_pace_10k": (
-            min(d.minutes * 60 / d.km for d in long_days) if long_days else float("nan")
-        ),
+        "best_pace_10k": min(d.minutes * 60 / d.km for d in long_days),
         "male": 1.0 if male else 0.0,
         # Not a model feature: the best day's distance, for the Riegel baseline.
-        "best_day_km": max(long_days, key=lambda d: d.km / d.minutes).km if long_days else None,
+        "best_day_km": max(long_days, key=lambda d: d.km / d.minutes).km,
     }
 
 

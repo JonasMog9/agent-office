@@ -1,4 +1,3 @@
-import math
 import random
 from datetime import date, timedelta
 
@@ -38,9 +37,8 @@ def test_too_little_training_is_skipped() -> None:
     assert window_features([], RACE, True) is None
 
 
-def test_missing_long_days_give_nan_best_pace() -> None:
-    f = window_features(training(km=8), RACE, False)
-    assert math.isnan(f["best_pace_10k"]) and f["best_day_km"] is None
+def test_no_10k_day_means_no_features() -> None:
+    assert window_features(training(km=8), RACE, False) is None
 
 
 def test_finds_majors_and_fast_42k_days_but_not_long_training_runs() -> None:
