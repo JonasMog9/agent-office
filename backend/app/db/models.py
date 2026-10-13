@@ -198,3 +198,15 @@ class TrainingPlan(Base):
     params: Mapped[dict] = mapped_column(JSON)  # the inputs it was built from
     plan: Mapped[dict] = mapped_column(JSON)  # coach.plan.plan_as_dict output
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+
+
+class AppState(Base):
+    """Small key/value facts the app must remember across restarts (e.g. last morning push)."""
+
+    __tablename__ = "app_state"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

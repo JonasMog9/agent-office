@@ -174,12 +174,12 @@ Done when "Predict my marathon" gives a sensible range (formula and ML side by s
 
 Claude Code prompt: `Using the Anthropic SDK with tool use, create a Manager agent that delegates to a Health Coach agent via tools. Emit an event to an in-process event bus on every agent start, tool call, handoff and finish.`
 
-Done when a test script asks the Manager a question and gets a correct answer plus a clean event log.
+Done when a test script asks the Manager a question and gets a correct answer plus a clean event log. ✅ Done 2026-10-13: "How recovered am I today?" on `/agents/ask` → Manager → Health Coach → `get_recovery` → a correct red-day answer (HRV, resting HR and breathing rate all off baseline, on a day the owner was actually sick), with a clean 13-event log.
 
 ### Phase 4: Telegram manager
 
-- [ ] Use python-telegram-bot in webhook mode on the same FastAPI app. Only answer your own Telegram user ID.
-- [ ] Add a 7am scheduled push of the readiness summary (Railway cron or APScheduler).
+- [x] Telegram webhook on the same FastAPI app (`/telegram`, Telegram's secret header checked). Only answers your own Telegram user ID. Four Bot API calls over httpx instead of python-telegram-bot: a plain route is simpler to run and to test. See [docs/telegram.md](docs/telegram.md).
+- [x] Daily morning push of the readiness summary. Not at a fixed 7am: today's data only exists once the Shortcut has run (when you open Gmail), so it's sent as soon as today's recovery is scored (not before 6am), with a 10am fallback that says the data is missing. Once a day, recorded in `app_state`.
 
 Claude Code prompt: `Add a Telegram webhook route using python-telegram-bot. Messages from my chat ID go to the Manager agent; the reply goes back to Telegram. Reject all other users.`
 
@@ -215,6 +215,7 @@ Problems hit while building this, how they were found, and what fixed them, newe
 
 | Date | Problem | How it showed up / was found | Fix | Lesson |
 | --- | --- | --- | --- | --- |
+| 2026-10-13 | First live agent question: a bare `Internal Server Error` | The owner asked on `/agents/ask` and got only that; nothing to go on from a phone | The page now catches a failed run and shows the error plus the partial event log. That revealed `401 invalid x-api-key`: the key in Railway wasn't valid. A new key (Default workspace) fixed it | Every entry point should report its real error to the (authenticated) owner; a bare 500 cost a round trip twice now (also `/ingest/health` in Phase 2) |
 | 2026-10-13 | The planned agent framework didn't fit the agents | Before writing Phase 3, re-checking the current docs: the Claude Agent SDK is Claude Code as a library (file editing, bash, its own runtime), built for coding agents, while ours only call our own Python tools | Built the agents on the plain Anthropic SDK with tool use: a ~100-line loop (`agents/loop.py`) that emits an office event at every step, strict tool schemas, and server-side refusal fallbacks on the coach | Re-check a framework choice against what the thing actually needs before building on it; the simplest tool that fits is easier to run and to explain |
 | 2026-10-13 | The learned marathon model predicted a *faster* time for less training | A sanity test with made-up weeks of identical short runs: 35 km/week with no 10 km+ day came out faster than 60 km/week. Only 1 of 25,264 training races had no 10 km+ day, so the model had never learned what a missing value meant | A window now needs at least one 10 km+ run, in training and when predicting; otherwise the app says the training is too light for the model and uses the formulas | Check a model on realistic inputs at the edges, and refuse inputs outside what it was trained on rather than extrapolating |
 | 2026-10-13 | Race predictions 50% apart, and the estimate stuck to the slowest | First real predictions: 5K 18:13–27:31. Apple's VO2max (≈53) said 18½ min; best efforts from careful post-injury runs said 27. The owner's real 5K three months earlier was ~23:00, with easy runs at 6:00/km | VDOT and Riegel came from the same run and counted twice, so the median always followed it. Methods are now grouped by source, and a personal pace-vs-HR model (VDOT ≈ 42 from easy runs, matching the 23:00 5K) joins as a source. The range is now ±3–8% by confidence, and disagreement is reported instead of spanned | Ask for ground truth early (one known race time), and check that two methods aren't the same input counted twice |

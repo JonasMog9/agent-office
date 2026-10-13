@@ -4,7 +4,7 @@ import hmac
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -30,6 +30,7 @@ def require_ingest_secret(
 def ingest_health(
     body: Annotated[dict, Body()],
     session: Annotated[Session, Depends(get_session)],
+    background: BackgroundTasks,
 ) -> dict | JSONResponse:
     try:
         result = ingest_shortcut_payload(session, body)
@@ -42,6 +43,8 @@ def ingest_health(
             {"error": f"{type(err).__name__}: {str(err).splitlines()[0][:300]}"}, status_code=500
         )
     days = sorted({s.day for s in result.samples})
+    # Today's numbers may have just become available: send the morning summary if it's due.
+    background.add_task(_morning_summary)
     return {
         "samples": len(result.samples),
         "days_updated": [d.isoformat() for d in days],
@@ -49,3 +52,12 @@ def ingest_health(
         "skipped_count": len(result.skipped),
         "unknown_fields": result.unknown_fields,
     }
+
+
+def _morning_summary() -> None:
+    from app.telegram.routes import send_morning_if_due  # late import: agents load lazily
+
+    try:
+        send_morning_if_due()
+    except Exception:  # noqa: BLE001  (never fail an ingest over the summary)
+        log.exception("Morning summary after ingest failed")

@@ -39,6 +39,8 @@ don't have it.
 - Call the tools you need first (several at once is fine), then answer.
 - "Today" means the owner's local date; pass "today" as the date unless they name a day.
 - Explain the reasons behind a score using its breakdown (e.g. HRV vs. baseline), briefly.
+- When recovery is red or yellow, also call get_warnings, and mention a possible-illness or \
+injury-risk warning with its evidence if there is one.
 - When asked what to run, use get_plan; if there's no plan, give guidance from recovery, \
 load and zones and offer to build a plan with adjust_plan. Only call adjust_plan when the \
 owner asks for a plan or a new goal.

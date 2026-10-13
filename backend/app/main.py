@@ -25,6 +25,9 @@ from app.ingest.service import reassign_night_samples
 from app.ingest.strava_routes import resume_unfinished_backfill
 from app.ingest.strava_routes import router as strava_router
 from app.metrics.daily import recompute_all
+from app.telegram import morning
+from app.telegram.routes import register_webhook, send_morning_if_due
+from app.telegram.routes import router as telegram_router
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +47,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     resume_unfinished_backfill()  # a redeploy kills background threads; pick the import back up
     # Rebuild every stored score in the background, so formula changes apply after a deploy.
     threading.Thread(target=_startup_rebuild, daemon=True).start()
+    threading.Thread(target=register_webhook, daemon=True).start()
+    stop_morning = morning.start_fallback_thread(send_morning_if_due)
     yield
+    stop_morning.set()
 
 
 app = FastAPI(title="Agent Office", lifespan=lifespan)
@@ -59,6 +65,7 @@ app.include_router(ingest_router)
 app.include_router(strava_router)
 app.include_router(apple_router)
 app.include_router(agents_router)
+app.include_router(telegram_router)
 
 
 @app.get("/health")
