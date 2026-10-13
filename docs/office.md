@@ -1,8 +1,23 @@
 # The pixel office (Phase 5)
 
-A web page where the three agents sit at their desks and act out every request live. The
-Manager walks over to the Health Coach, the Coach types while its tools run, answers appear in
-speech bubbles, and the Manager carries the reply to the door ("to you", i.e. Telegram).
+A web page where the three agents act out every request live. Each one is a small hover robot
+in its own room:
+
+| Robot | Room | What's in it |
+| --- | --- | --- |
+| Health Coach (green) | Health Lab | heart-rate monitor, treadmill, dumbbells |
+| Manager (blue) | Command Room | status board with a light per agent, antenna mast |
+| Market Scout (orange) | Trading Desk | candlestick screens, ticker tape |
+
+Each room has a sliding door (it opens as a robot passes) and a short corridor down to a shared
+hallway, which leads to a glowing exit. The Manager flies out through its door and along the
+hallway into the Health Coach's room,
+the Coach's screen flickers while its tools run, answers appear in speech bubbles, and the
+Manager carries the reply to the exit ("to you", i.e. Telegram).
+
+To change the look: colours and room names are in `THEME` at the top of
+`frontend/src/office/OfficeScene.ts`, the robot pixel art is the `ROBOT` grid below it, and room
+positions and flight paths are in `frontend/src/office/layout.ts`.
 
 ## Live vs. demo
 
@@ -31,5 +46,5 @@ labelled as such. That's the version to share publicly.
 cd frontend
 npm install
 npm run dev        # http://localhost:5173 (demo, or ?key=... for live)
-npm test           # choreography rules
+npm test           # choreography rules and flight paths
 ```

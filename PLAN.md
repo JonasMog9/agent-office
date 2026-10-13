@@ -188,13 +188,13 @@ Done when you text the bot from your phone and get your score back. ✅ Done 202
 ### Phase 5: The pixel office
 
 - [x] Stream the event bus to the browser over a WebSocket (`/ws/events`): the last 30 events on connect, then live, with a 25 s ping. The bubbles carry health numbers, so the live feed needs `OFFICE_VIEW_KEY`; without it the page plays a demo with made-up numbers.
-- [x] Build the office: either adapt pixel-agents (its core is agent-agnostic) or build a small Phaser 3 scene with a free tileset and three characters. Start with Phaser: you control everything and it's easier to explain in interviews. Done as a Phaser 3 scene drawn entirely in code (room, desks, 12×15 pixel characters), so there's no tileset to license.
-- [x] Map each event to an animation: walk to a desk, type, show a speech bubble with the message text, go idle. Rules in `frontend/src/office/choreography.ts` (unit-tested): walking to an agent visits its desk, walking to the owner goes to the door, idle walks home.
-- [ ] Deploy the frontend to Vercel.
+- [x] Build the office: either adapt pixel-agents (its core is agent-agnostic) or build a small Phaser 3 scene with a free tileset and three characters. Start with Phaser: you control everything and it's easier to explain in interviews. Done as a Phaser 3 scene drawn entirely in code, so there's no tileset to license. Each agent is a 16×16 hover robot in its own themed room (Health Lab, Command Room, Trading Desk), each with a sliding door and a corridor down to a shared hallway (night-sky windows, a guide strip pulsing toward the "to you" exit).
+- [x] Map each event to an animation: walk to a desk, type, show a speech bubble with the message text, go idle. Rules in `frontend/src/office/choreography.ts` (unit-tested): walking to an agent visits its room, walking to the owner goes to the exit, idle flies home. Robots fly between rooms through the doors, corridors and hallway (`frontend/src/office/layout.ts`, tested).
+- [x] Deploy the frontend to Vercel. Live at https://agent-office-tau-five.vercel.app/ (demo without the key).
 
 Claude Code prompt: `Build a Phaser 3 scene in frontend/ with an office tilemap and three characters (Manager, Health Coach, Market Scout). Subscribe to /ws/events and drive walk, type, talk and idle animations from the event status. Show speech bubbles with the event text.`
 
-Done when a Telegram message visibly plays out on the office page.
+Done when a Telegram message visibly plays out on the office page. ✅ Done 2026-10-13: a question to the bot played out live on the Vercel page (Manager → Health Coach → tools → answer back to the exit), matching the event log.
 
 ### Phase 6: Market Scout
 
