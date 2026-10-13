@@ -21,6 +21,11 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.6",
 ]
+# Only for training the learned race predictor (app/coach/ml/train.py), not for the app.
+ml = [
+    "pandas>=2.2",
+    "pyarrow>=16",
+]
 
 [build-system]
 requires = ["setuptools>=69"]
