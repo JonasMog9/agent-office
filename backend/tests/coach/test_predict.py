@@ -88,3 +88,22 @@ def test_best_effort_picks_the_fastest_equivalent() -> None:
     assert next(c for c in p.components if c.name == "VDOT").baseline == pytest.approx(
         round(vdot(10000, 42 * 60), 1)
     )
+
+
+def test_one_run_cannot_vote_twice_and_the_hr_model_breaks_the_tie() -> None:
+    # The owner's case: a careful post-injury run (VDOT ≈ 36), Apple VO2max 53, HR model 42.
+    runs = [run(3, 6, 32, [be("5k", 5000, 27 * 60)])]
+    p = predict_races(runs, vo2max=53.0, as_of=TODAY, hr_vdot=42.0)["5K"]
+    assert p.value == round(race_time_s(42.0, DISTANCES_M["5K"]))  # ≈ 23:00, the median source
+    assert p.label == "medium"
+    assert any("Methods disagree" in n for n in p.notes)
+    low, high = p.components[-1].value, p.components[-1].baseline
+    assert high / low == pytest.approx(1.05 / 0.95, rel=1e-3)  # ±5% at medium confidence
+
+
+def test_without_hr_model_two_sources_average() -> None:
+    runs = [run(3, 6, 32, [be("5k", 5000, 27 * 60)])]
+    p = predict_races(runs, vo2max=53.0, as_of=TODAY)["5K"]
+    effort = [c.value for c in p.components if c.name in ("VDOT", "Riegel")]
+    vo2 = next(c.value for c in p.components if c.name == "VO2max")
+    assert p.value == round((sum(effort) / 2 + vo2) / 2)
