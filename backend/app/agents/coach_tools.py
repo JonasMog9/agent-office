@@ -265,11 +265,23 @@ def get_warnings(session: Session, args: dict) -> dict:
     return warnings_for(session, _day(args["date"])) | {"date": _day(args["date"])}
 
 
+def tidy(value):  # noqa: ANN001, ANN201
+    """Round numbers the way they're read: 26.29 → 26, 0.664 → 0.66. The coach may not round
+    numbers itself, so its tools hand them over already rounded."""
+    if isinstance(value, float):
+        return round(value) if abs(value) >= 10 else round(value, 2)
+    if isinstance(value, dict):
+        return {k: tidy(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [tidy(v) for v in value]
+    return value
+
+
 def coach_tools(session_factory: Callable[[], Session]) -> list[Tool]:
     def bind(fn: Callable[[Session, dict], dict]) -> Callable[[dict], dict]:
         def run(args: dict) -> dict:
             with session_factory() as session:
-                return fn(session, args)
+                return tidy(fn(session, args))
 
         return run
 

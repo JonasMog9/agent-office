@@ -136,7 +136,7 @@ def test_coach_tools_return_stored_numbers() -> None:
     sleep = tools["get_sleep"].handler({"date": "today"})
     assert sleep["sleep_debt_min"] == 129 and sleep["asleep_last_night_min"] == 480
     load = tools["get_training_load"].handler({"date": "2026-10-13"})
-    assert load["form"] == 16.5 and load["flags"] == ["Load well below your 4-week average."]
+    assert load["form"] == 16 and load["flags"] == ["Load well below your 4-week average."]
     zones = tools["get_zones"].handler({})
     assert zones["heart_rate_zones"][1]["to_bpm"] == 150  # zone 2 top, 54 rest / 191 max
     assert "no prediction yet" in zones["vdot_source"]
@@ -228,3 +228,12 @@ def test_event_bus_validates_and_survives_bad_subscribers() -> None:
         bus.emit("manager", "dancing")
     with pytest.raises(ValueError):
         bus.emit("intern", "idle")
+
+
+def test_tool_numbers_come_rounded() -> None:
+    assert coach_tools.tidy({"hrv": 26.29, "acwr": 0.664, "x": [372.5, 1.234], "n": 3}) == {
+        "hrv": 26,
+        "acwr": 0.66,
+        "x": [372, 1.23],
+        "n": 3,
+    }

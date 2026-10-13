@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # Home time zone (IANA name, e.g. America/New_York). Places nights stored before the
     # 18:00 night rule; later also the clock for scheduled Telegram pushes.
     timezone: str = "UTC"
+    # Morning summary on Telegram: sent once a day when today's health data has landed (the
+    # Shortcut runs when you open Gmail), but not before EARLIEST, and at FALLBACK even if the
+    # data never came.
+    morning_push_earliest_hour: int = 6
+    morning_push_fallback_hour: int = 10
     # Base URL for OAuth/webhook callbacks. Railway sets RAILWAY_PUBLIC_DOMAIN automatically.
     public_base_url: str = ""
     railway_public_domain: str = ""
