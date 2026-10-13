@@ -93,9 +93,13 @@ def create_plan(
     return row
 
 
+def active_plan(session: Session) -> TrainingPlan | None:
+    return session.scalar(select(TrainingPlan).where(TrainingPlan.active))
+
+
 def todays_workout(session: Session, today: date, pain: bool = False) -> dict | None:
     """Today's workout from the active plan, adjusted to today's recovery and load."""
-    row = session.scalar(select(TrainingPlan).where(TrainingPlan.active))
+    row = active_plan(session)
     if row is None:
         return None
     planned = next(

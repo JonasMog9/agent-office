@@ -31,7 +31,7 @@ One Python backend on Railway runs all three agents. Your phone pushes daily hea
  │ Strava               │─POST▶│          /strava/webhook                │     └──────────────────┘
  └──────────────────────┘      │                                         │
                                │ Manager ─▶ Health Coach / Market Scout  │
-                               │ (Claude Agent SDK)   │ event bus        │
+                               │ (Claude API tools)   │ event bus        │
                                │ Postgres: health · tokens · events      │
                                └─────────────────────────────────────────┘
 ```
@@ -40,7 +40,7 @@ Every agent step is saved as an event, and the office replays those events as an
 
 | Layer | Choice | Why |
 | --- | --- | --- |
-| Agents | Claude Agent SDK (Python) | Native subagents and hooks, no extra framework to learn |
+| Agents | Anthropic Python SDK, tool use with our own loop | Our agents only call our own tools, so a ~100-line loop beats a framework: no extra runtime on Railway, and an event at every step for the office |
 | API | FastAPI | Async, WebSockets built in, standard on resumes |
 | Database | Postgres | Health history, token snapshots, event log |
 | Chat | python-telegram-bot (webhook mode) | Doesn't need to poll, so it works on cheap hosting |
@@ -166,13 +166,13 @@ Claude Code prompt: `/plan Add a coach package: TRIMP-based CTL/ATL/TSB and ACWR
 
 Done when "Predict my marathon" gives a sensible range (formula and ML side by side, with the ML model's cross-validated error against the baselines written up), and a 12-week plan generates and adapts to a red recovery day. ✅ Done: the cross-validated write-up is in [REPORT.md](backend/app/coach/ml/REPORT.md), and the plan adapting to a red day is tested. While the owner's training is below the model's range (20+ km/week with a 10 km+ run, after the hip injury), the marathon prediction shows the formulas plus a note saying why the ML estimate is missing; it appears beside them once volume is back.
 
-### Phase 3: Agents (Claude Agent SDK)
+### Phase 3: Agents (Anthropic SDK tool use)
 
-- [ ] Health Coach agent with tools `get_recovery, get_strain, get_sleep, get_training_load, predict_race, get_plan` and `adjust_plan`. It explains the numbers, prescribes today's run, and answers coaching questions, but it never invents a number.
-- [ ] Manager agent with one tool per worker (`ask_health_coach`, `ask_market_scout`). Use Haiku for the Manager and Sonnet for the Coach.
-- [ ] Every agent step writes an event: `{agent, status: idle|thinking|walking|working|talking, target, text}`.
+- [x] Health Coach agent with tools `get_recovery, get_strain, get_sleep, get_training_load, predict_race, get_plan` and `adjust_plan`. It explains the numbers, prescribes today's run, and answers coaching questions, but it never invents a number.
+- [x] Manager agent with one tool per worker (`ask_health_coach`, `ask_market_scout`). Use Haiku for the Manager and Sonnet for the Coach.
+- [x] Every agent step writes an event: `{agent, status: idle|thinking|walking|working|talking, target, text}`.
 
-Claude Code prompt: `Using the Claude Agent SDK, create a Manager agent that delegates to a Health Coach subagent via tools. Emit an event to an in-process event bus on every agent start, tool call, handoff and finish.`
+Claude Code prompt: `Using the Anthropic SDK with tool use, create a Manager agent that delegates to a Health Coach agent via tools. Emit an event to an in-process event bus on every agent start, tool call, handoff and finish.`
 
 Done when a test script asks the Manager a question and gets a correct answer plus a clean event log.
 
@@ -215,6 +215,7 @@ Problems hit while building this, how they were found, and what fixed them, newe
 
 | Date | Problem | How it showed up / was found | Fix | Lesson |
 | --- | --- | --- | --- | --- |
+| 2026-10-13 | The planned agent framework didn't fit the agents | Before writing Phase 3, re-checking the current docs: the Claude Agent SDK is Claude Code as a library (file editing, bash, its own runtime), built for coding agents, while ours only call our own Python tools | Built the agents on the plain Anthropic SDK with tool use: a ~100-line loop (`agents/loop.py`) that emits an office event at every step, strict tool schemas, and server-side refusal fallbacks on the coach | Re-check a framework choice against what the thing actually needs before building on it; the simplest tool that fits is easier to run and to explain |
 | 2026-10-13 | The learned marathon model predicted a *faster* time for less training | A sanity test with made-up weeks of identical short runs: 35 km/week with no 10 km+ day came out faster than 60 km/week. Only 1 of 25,264 training races had no 10 km+ day, so the model had never learned what a missing value meant | A window now needs at least one 10 km+ run, in training and when predicting; otherwise the app says the training is too light for the model and uses the formulas | Check a model on realistic inputs at the edges, and refuse inputs outside what it was trained on rather than extrapolating |
 | 2026-10-13 | Race predictions 50% apart, and the estimate stuck to the slowest | First real predictions: 5K 18:13–27:31. Apple's VO2max (≈53) said 18½ min; best efforts from careful post-injury runs said 27. The owner's real 5K three months earlier was ~23:00, with easy runs at 6:00/km | VDOT and Riegel came from the same run and counted twice, so the median always followed it. Methods are now grouped by source, and a personal pace-vs-HR model (VDOT ≈ 42 from easy runs, matching the 23:00 5K) joins as a source. The range is now ±3–8% by confidence, and disagreement is reported instead of spanned | Ask for ground truth early (one known race time), and check that two methods aren't the same input counted twice |
 | 2026-10-09 | Nights split at midnight, and sleep debt jumped when an old night left the window | After the debt fix, debt fell on a short night. Listing nightly sleep by SQL showed Oct 4 with bedtime 00:11 and wake-up 23:55: the first stage of the next night ended before midnight, so it was filed under the evening's date | A night now starts at 18:00 (anything after counts toward the next morning); stored samples are moved once at startup using the home `TIMEZONE`, since Postgres drops the original UTC offset. The debt balance now runs over 30 nights so a dropped night changes it by <1%. The leftover 3 h "night" was a watch that died, so nights of 4 h or less are now scored as no data | "The day a sample ends" is not the same as "the night it belongs to"; check edge cases at midnight, and keep data needed to recompute (offsets) |
@@ -238,7 +239,7 @@ Record a split screen: your phone (screen recording) on the left and the office 
 2. **5–25s, the ask.** You text "How ready am I to train today?". The Manager stands up and walks to the Health Coach with a speech bubble.
 3. **25–40s, the work.** The Coach types. The bubble shows "HRV 12% below baseline, 6h10m sleep". Your phone buzzes: "Recovery 58% (yellow). Swapping today's intervals for an easy 40 min in Zone 2. Marathon estimate: 3:28–3:36."
 4. **40–55s, the second agent.** Cut to the morning: the Scout walks to the chart wall and the daily meme coin brief lands in Telegram.
-5. **55–75s, under the hood.** Show the architecture diagram, the 30-day readiness chart, and the GitHub repo. Caption the stack: "FastAPI · Postgres · Claude Agent SDK · Telegram · Phaser · Railway".
+5. **55–75s, under the hood.** Show the architecture diagram, the 30-day readiness chart, and the GitHub repo. Caption the stack: "FastAPI · Postgres · Claude API · Telegram · Phaser · Railway".
 
 Tips: record with real data, keep captions on screen (most people watch muted), and end on the repo URL.
 
@@ -258,7 +259,7 @@ Expect roughly $7–10 for the month. These are approximate figures, so check cu
 
 **Resume bullets (once it's built):**
 
-- Built a cloud-hosted multi-agent system (Claude Agent SDK, FastAPI, Postgres on Railway) controlled through a Telegram bot, with a real-time Phaser visualizer streaming agent state over WebSockets.
+- Built a cloud-hosted multi-agent system (Claude API tool use, FastAPI, Postgres on Railway) controlled through a Telegram bot, with a real-time Phaser visualizer streaming agent state over WebSockets.
 - Designed a daily Apple Watch + Strava data pipeline (iOS Shortcut push, Strava webhooks and OAuth, historical backfill, normalization, rolling 7/28-day baselines) plus tested recovery, strain, training-load and race-prediction models that drive an adaptive marathon plan.
 - Trained and cross-validated a scikit-learn marathon-time model on a public multi-runner dataset against Riegel and Daniels VDOT baselines (MAE reported honestly), and fit a personal pace-vs-heart-rate fitness model on Strava run segments.
 - Built a market-data ingestion job and risk-scoring model for trending tokens. Evaluated 30 days of flags against outcomes.
