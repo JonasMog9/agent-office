@@ -16,6 +16,7 @@ from datetime import date, datetime
 from sqlalchemy import (
     JSON,
     BigInteger,
+    Boolean,
     Date,
     DateTime,
     Float,
@@ -183,3 +184,17 @@ class Prediction(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class TrainingPlan(Base):
+    """A generated training plan. Only one is active; making a new one retires the old."""
+
+    __tablename__ = "training_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    race_distance: Mapped[str | None] = mapped_column(String(16))
+    race_date: Mapped[date | None] = mapped_column(Date)
+    params: Mapped[dict] = mapped_column(JSON)  # the inputs it was built from
+    plan: Mapped[dict] = mapped_column(JSON)  # coach.plan.plan_as_dict output
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
