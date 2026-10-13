@@ -10,7 +10,7 @@ Agent Office: a cloud-hosted team of three AI agents (Manager, Health Coach, Mar
 
 | Layer | Choice |
 | --- | --- |
-| Agents | Claude Agent SDK (Python). Haiku for the Manager, Sonnet for the Health Coach and Market Scout |
+| Agents | Anthropic Python SDK with tool use: our own small agent loop (`agents/loop.py`) that emits an event per step. Haiku 5.5 for the Manager, Sonnet 5.5 for the Health Coach and Market Scout |
 | API | FastAPI (async, WebSockets) on Python 3.12 |
 | Database | Postgres via SQLAlchemy 2.x, migrations with Alembic |
 | Chat | python-telegram-bot in webhook mode, mounted on the FastAPI app |
@@ -32,7 +32,7 @@ backend/
     coach/           training load, zones, race predictor, plan generator (pure functions)
       ml/            scikit-learn race-time and fitness models: training script, saved model + metrics
     scout/           DexScreener / CoinGecko ingestion and token scoring
-    agents/          Manager, Health Coach, Market Scout (Claude Agent SDK) + event bus
+    agents/          Manager, Health Coach, Market Scout (Anthropic SDK tool use) + event bus
     telegram/        bot webhook handler and scheduled pushes
   tests/             pytest, mirrors app/
   Dockerfile
