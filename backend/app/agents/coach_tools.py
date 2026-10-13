@@ -60,15 +60,22 @@ def _brief(result: dict | None) -> dict | None:
     }
 
 
+def hm(minutes: float | None) -> str | None:
+    """Minutes as the owner reads durations: "7 h 45 min"."""
+    if minutes is None:
+        return None
+    h, m = divmod(round(minutes), 60)
+    return f"{h} h {m} min" if h else f"{m} min"
+
+
 def get_recovery(session: Session, args: dict) -> dict:
     day = _day(args["date"])
     s = _score(session, day)
-    return {
-        "date": day,
-        "recovery": s.recovery,
-        "label": s.recovery_label,
-        "breakdown": _brief(s.details.get("recovery")),
-    }
+    breakdown = _brief(s.details.get("recovery"))
+    for c in (breakdown or {}).get("components", []):
+        if c.get("name") == "sleep":  # minutes asleep vs. minutes needed
+            c["value"], c["baseline"] = hm(c.get("value")), hm(c.get("baseline"))
+    return {"date": day, "recovery": s.recovery, "label": s.recovery_label, "breakdown": breakdown}
 
 
 def get_sleep(session: Session, args: dict) -> dict:
@@ -77,10 +84,10 @@ def get_sleep(session: Session, args: dict) -> dict:
     m = session.get(DailyMetric, day)
     return {
         "date": day,
-        "asleep_last_night_min": m.sleep_asleep_min if m else None,
+        "asleep_last_night": hm(m.sleep_asleep_min) if m else None,
         "sleep_performance_pct": s.sleep_performance,
-        "sleep_need_tonight_min": s.sleep_need_min,
-        "sleep_debt_min": s.sleep_debt_min,
+        "sleep_need_tonight": hm(s.sleep_need_min),
+        "sleep_debt": hm(s.sleep_debt_min),
         "consistency": s.sleep_consistency,
         "need_breakdown": _brief(s.details.get("sleep_need")),
         "note": s.details.get("sleep_ignored"),
@@ -142,7 +149,7 @@ def get_trend(session: Session, args: dict) -> dict:
                 "recovery": r.recovery,
                 "label": r.recovery_label,
                 "strain": r.strain,
-                "sleep_debt_min": r.sleep_debt_min,
+                "sleep_debt": hm(r.sleep_debt_min),
                 "form": r.form,
                 "acwr": r.acwr,
             }

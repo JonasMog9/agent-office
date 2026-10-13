@@ -59,7 +59,7 @@ def test_a_signal_never_recorded_is_left_out_quietly() -> None:
     r = recovery(day(), history())  # no wrist temperature anywhere, as on older watches
     assert "wrist_temp" not in {c.name for c in r.components}
     assert not any("reweighted" in n for n in r.notes)
-    assert any("wrist_temp" in n for n in r.notes)
+    assert not any("wrist" in n for n in r.notes)  # a watch that can't record it: not a topic
 
 
 def test_a_tracked_signal_missing_today_is_still_listed() -> None:

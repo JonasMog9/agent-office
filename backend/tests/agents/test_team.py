@@ -134,7 +134,9 @@ def test_models_and_request_settings() -> None:
 def test_coach_tools_return_stored_numbers() -> None:
     tools = {t.name: t for t in coach_tools.coach_tools(SessionLocal)}
     sleep = tools["get_sleep"].handler({"date": "today"})
-    assert sleep["sleep_debt_min"] == 129 and sleep["asleep_last_night_min"] == 480
+    assert sleep["sleep_debt"] == "2 h 9 min" and sleep["asleep_last_night"] == "8 h 0 min"
+    assert sleep["sleep_need_tonight"] == "8 h 32 min"
+    assert coach_tools.hm(45) == "45 min" and coach_tools.hm(None) is None
     load = tools["get_training_load"].handler({"date": "2026-10-13"})
     assert load["form"] == 16 and load["flags"] == ["Load well below your 4-week average."]
     zones = tools["get_zones"].handler({})
