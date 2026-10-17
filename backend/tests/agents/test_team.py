@@ -127,7 +127,7 @@ def test_models_and_request_settings() -> None:
         "get_zones",
         "get_trend",
     }
-    assert "2026-10-13" in coach["system"]
+    assert f"Today is {TODAY.isoformat()}." in coach["system"]
 
 
 @pytest.mark.usefixtures("db", "seeded")

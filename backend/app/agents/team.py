@@ -13,7 +13,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.agents.coach_tools import coach_tools, today
+from app.agents import coach_tools
 from app.agents.events import EventBus
 from app.agents.events import bus as default_bus
 from app.agents.loop import AgentResult, Tool, run_agent
@@ -77,8 +77,8 @@ def ask_health_coach(
         client=client,
         agent="health_coach",
         model=COACH_MODEL,
-        system=COACH_SYSTEM + f"\n\nToday is {today().isoformat()}.",
-        tools=coach_tools(session_factory),
+        system=COACH_SYSTEM + f"\n\nToday is {coach_tools.today().isoformat()}.",
+        tools=coach_tools.coach_tools(session_factory),
         prompt=question,
         bus=bus,
         run_id=run_id,
