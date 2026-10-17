@@ -65,8 +65,8 @@ h1 {
   border-radius: 0 4px 4px 0;
 }
 .log li.manager { border-color: #3b5bdb; }
-.log li.health_coach { border-color: #2f9e44; }
-.log li.market_scout { border-color: #f08c00; }
+.log li.health_coach { border-color: #f06595; }
+.log li.market_scout { border-color: #fcc419; }
 .log i { color: #9aa4b2; }
 .log .target { color: #9aa4b2; }
 .log .text { margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -5,9 +5,15 @@ in its own room:
 
 | Robot | Room | What's in it |
 | --- | --- | --- |
-| Health Coach (green) | Health Lab | heart-rate monitor, treadmill, dumbbells |
+| Health Coach (pink and purple) | Health Lab | heart-rate monitor, treadmill, dumbbells, water bottle |
 | Manager (blue) | Command Room | status board with a light per agent, antenna mast |
-| Market Scout (orange) | Trading Desk | candlestick screens, ticker tape |
+| Market Scout (caped, with a cowl and a yellow belt) | Trading Desk | candlestick screens, scrolling ticker, laptop |
+
+Between requests the robots potter about their rooms every 7–16 seconds: the Health Coach
+drinks from its water bottle or jogs on the treadmill, the Manager checks the status board and
+the antenna, the Market Scout watches the charts or types on the laptop. A real event
+interrupts a chore at once and the robot flies back to its desk. The chores are listed in
+`frontend/src/office/chores.ts`.
 
 Each room has a sliding door (it opens as a robot passes) and a short corridor down to a shared
 hallway, which leads to a glowing exit. The Manager flies out through its door and along the
@@ -16,7 +22,7 @@ the Coach's screen flickers while its tools run, answers appear in speech bubble
 Manager carries the reply to the exit ("to you", i.e. Telegram).
 
 To change the look: colours and room names are in `THEME` at the top of
-`frontend/src/office/OfficeScene.ts`, the robot pixel art is the `ROBOT` grid below it, and room
+`frontend/src/office/OfficeScene.ts`, the robot pixel art is the `ROBOT` and `CAPED` grids below it, and room
 positions and flight paths are in `frontend/src/office/layout.ts`.
 
 ## Live vs. demo
