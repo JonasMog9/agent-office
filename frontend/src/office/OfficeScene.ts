@@ -16,6 +16,7 @@ import {
   type OfficeEvent,
   type Spot,
 } from './choreography'
+import { choreDelay, choresFor, type Chore } from './chores'
 import {
   DOOR_W,
   EXIT,
@@ -52,11 +53,11 @@ interface Theme {
 const THEME: Record<AgentId, Theme> = {
   health_coach: {
     title: 'HEALTH LAB',
-    floor: [0x2b3d36, 0x30443b],
-    wall: 0x3f6b5c,
-    body: 0x37b24d,
-    dark: 0x2b8a3e,
-    light: 0xff6b6b,
+    floor: [0x352a40, 0x3b2f47],
+    wall: 0x6a3d7a,
+    body: 0xf783ac, // pink
+    dark: 0x9c36b5, // purple
+    light: 0xda77f2,
   },
   manager: {
     title: 'COMMAND ROOM',
@@ -70,9 +71,9 @@ const THEME: Record<AgentId, Theme> = {
     title: 'TRADING DESK',
     floor: [0x3d3128, 0x43362c],
     wall: 0x6b4f3a,
-    body: 0xf76707,
-    dark: 0xd9480f,
-    light: 0x66d9e8,
+    body: 0xfcc419, // bat-signal yellow, for its door and corridor lights
+    dark: 0x25262b,
+    light: 0xfcc419,
   },
 }
 
@@ -95,7 +96,32 @@ const ROBOT = [
   '...DDDDDDDDDD...',
   '....TTTTTTTT....',
 ]
-const FEET = { stand: '...TTTTTTTTTT...', fly: '.....FFFFFF.....' }
+// The Market Scout wears a cowl with pointed ears, a cape and a yellow belt and emblem.
+const CAPED = [
+  '...K........K...',
+  '...KK......KK...',
+  '...KKKKKKKKKK...',
+  '...KKKKKKKKKK...',
+  '...KWWWKKWWWK...',
+  '...KKKKKKKKKK...',
+  '...KKHHHHHHKK...',
+  '....KHHHHHHK....',
+  '.....NNNNNN.....',
+  '.KKGGGGGGGGGGKK.',
+  'KKKGGYYYYYYGGKKK',
+  'KK.GGYKYYKYGG.KK',
+  'KK.GGGGGGGGGG.KK',
+  'KK.YYYYYYYYYY.KK',
+  'KKK.TTTTTTTT.KKK',
+]
+const FEET = { stand: '...TTTTTTTTTT...', fly: '.....FFFFFF.....', run: '...TT......TT...' }
+const SPRITES: Record<AgentId, { rows: string[]; eye: string; shut: string }> = {
+  health_coach: { rows: ROBOT, eye: 'E', shut: 'V' },
+  manager: { rows: ROBOT, eye: 'E', shut: 'V' },
+  market_scout: { rows: CAPED, eye: 'W', shut: 'K' },
+}
+
+type Effect = Phaser.Tweens.Tween | Phaser.Time.TimerEvent
 
 interface Robot {
   id: AgentId
@@ -107,6 +133,9 @@ interface Robot {
   busy: boolean
   flying: boolean
   typing?: Phaser.Time.TimerEvent
+  flight?: Phaser.Tweens.TweenChain
+  chore?: { token: number; timers: Phaser.Time.TimerEvent[]; anim: Effect[] }
+  nextChoreAt: number
 }
 
 interface Door {
@@ -120,6 +149,9 @@ interface Door {
 export class OfficeScene extends Phaser.Scene {
   private robots = new Map<AgentId, Robot>()
   private doors: Door[] = []
+  private bottle!: Phaser.GameObjects.Container
+  private belt: Phaser.GameObjects.Rectangle[] = []
+  private choreToken = 0
 
   constructor() {
     super('office')
@@ -143,6 +175,14 @@ export class OfficeScene extends Phaser.Scene {
         }
       },
     })
+    // Between requests, robots potter about their rooms.
+    this.time.addEvent({
+      delay: 500,
+      loop: true,
+      callback: () => {
+        for (const r of this.robots.values()) if (this.isFree(r)) this.startChore(r)
+      },
+    })
   }
 
   /** Doors slide open while a robot is passing through. */
@@ -161,7 +201,10 @@ export class OfficeScene extends Phaser.Scene {
   play(event: OfficeEvent): void {
     const robot = this.robots.get(event.agent)
     if (!robot) return
-    robot.queue.push(toAction(event))
+    const action = toAction(event)
+    // Interrupted mid-chore: head back to the desk first, unless the event flies off anyway.
+    if (this.stopChore(robot) && action.kind !== 'walk') robot.queue.push({ kind: 'walk', agent: robot.id, to: { desk: robot.id } })
+    robot.queue.push(action)
     this.next(robot)
   }
 
@@ -278,7 +321,7 @@ export class OfficeScene extends Phaser.Scene {
   private healthLab(g: Phaser.GameObjects.Graphics, x0: number): void {
     // heart-rate monitor with an ECG trace
     g.fillStyle(0x101418).fillRect(x0 + 18, 26, 74, 28)
-    g.lineStyle(2, 0x51cf66)
+    g.lineStyle(2, 0xf783ac)
     const ecg = [0, 0, 0, 0, -10, 12, -4, 0, 0, 0, 0, -8, 9, -2, 0, 0]
     g.beginPath()
     ecg.forEach((v, i) => {
@@ -293,23 +336,28 @@ export class OfficeScene extends Phaser.Scene {
     g.fillStyle(0x212529).fillRect(x0 + 12, 238, 62, 12)
     g.fillStyle(0x495057).fillRect(x0 + 12, 250, 62, 4)
     g.fillStyle(0x868e96).fillRect(x0 + 12, 214, 4, 26).fillRect(x0 + 12, 212, 18, 4)
-    g.fillStyle(0x51cf66).fillRect(x0 + 18, 213, 6, 2)
+    g.fillStyle(0xf783ac).fillRect(x0 + 18, 213, 6, 2)
+    // belt stripes that roll while someone's jogging
+    for (let k = 0; k < 4; k++) this.belt.push(this.add.rectangle(x0 + 20 + k * 15, 244, 2, 10, 0x343a40))
     // dumbbell rack along the back wall
-    g.fillStyle(0x495057).fillRect(x0 + 128, 96, 48, 4)
-    for (const dx of [134, 154]) {
+    g.fillStyle(0x495057).fillRect(x0 + 112, 96, 48, 4)
+    for (const dx of [118, 138]) {
       g.fillStyle(0x212529).fillRect(x0 + dx, 88, 4, 8).fillRect(x0 + dx + 12, 88, 4, 8)
       g.fillStyle(0xadb5bd).fillRect(x0 + dx + 4, 91, 8, 2)
     }
-    // water bottle
-    g.fillStyle(0x74c0fc).fillRect(x0 + 186, 78, 10, 18)
-    g.fillStyle(0x1c7ed6).fillRect(x0 + 188, 74, 6, 4)
+    // water bottle on a shelf (an object, so the Coach can pick it up)
+    g.fillStyle(0x495057).fillRect(x0 + 180, 96, 22, 3)
+    this.bottle = this.add.container(x0 + 191, 96, [
+      this.add.rectangle(0, -9, 10, 18, 0x74c0fc),
+      this.add.rectangle(0, -20, 6, 4, 0x1c7ed6),
+    ])
   }
 
   private commandRoom(g: Phaser.GameObjects.Graphics, x0: number): void {
     // big status screen: three agent status lights
     g.fillStyle(0x0b1020).fillRect(x0 + 46, 22, 120, 34)
     g.lineStyle(1, 0x364fc7).strokeRect(x0 + 46, 22, 120, 34)
-    for (const [i, c] of [0x37b24d, 0x4c6ef5, 0xf76707].entries()) {
+    for (const [i, c] of [0xf783ac, 0x4c6ef5, 0xfcc419].entries()) {
       g.fillStyle(c).fillCircle(x0 + 70 + i * 36, 34, 4)
       g.fillStyle(0x364fc7).fillRect(x0 + 60 + i * 36, 44, 20, 3)
     }
@@ -364,11 +412,14 @@ export class OfficeScene extends Phaser.Scene {
     const colors: Record<string, number> = {
       L: t.light, A: 0x868e96, H: 0xced4da, V: 0x1b1b24, E: 0x66d9e8, N: 0x868e96,
       B: t.body, C: t.light, R: 0xadb5bd, D: t.dark, T: 0x495057, F: 0xffa94d,
+      K: 0x16171d, W: 0xf8f9fa, G: 0x8a929e, Y: 0xfcc419,
     }
+    const { rows, eye, shut } = SPRITES[id]
     const frames: Record<string, string[]> = {
-      open: [...ROBOT, FEET.stand],
-      blink: [...ROBOT.map((r) => r.replace(/E/g, 'V')), FEET.stand],
-      fly: [...ROBOT, FEET.fly],
+      open: [...rows, FEET.stand],
+      blink: [...rows.map((r) => r.replaceAll(eye, shut)), FEET.stand],
+      fly: [...rows, FEET.fly],
+      run: [...rows, FEET.run],
     }
     for (const [name, rows] of Object.entries(frames)) {
       const g = this.make.graphics({}, false)
@@ -387,7 +438,7 @@ export class OfficeScene extends Phaser.Scene {
     const screen = this.add.rectangle(roomX(id), 159, 28, 14, 0x2b3a55)
     const sprite = this.add.sprite(x, y, `${id}-open`).setOrigin(0.5, 1).setDepth(y)
     const label = this.text(x, y + 26, '', '#ffd43b', 9).setOrigin(0.5, 0).setDepth(900)
-    return { id, sprite, label, screen, queue: [], busy: false, flying: false }
+    return { id, sprite, label, screen, queue: [], busy: false, flying: false, nextChoreAt: this.time.now + choreDelay() }
   }
 
   // ---- acting ------------------------------------------------------------------------
@@ -397,6 +448,7 @@ export class OfficeScene extends Phaser.Scene {
     const action = robot.queue.shift()
     if (!action) return
     robot.busy = true
+    robot.nextChoreAt = this.time.now + choreDelay() // no chores straight after real work
     const ms = this.act(robot, action)
     // Under a backlog, hurry: a long queue would otherwise lag far behind the real run.
     const speed = robot.queue.length > 6 ? 0.4 : 1
@@ -448,9 +500,13 @@ export class OfficeScene extends Phaser.Scene {
 
   /** Fly along the hallway route to a spot; returns the flight time. */
   private fly(robot: Robot, s: Spot): number {
+    return this.flyTo(robot, spotPoint(s))
+  }
+
+  private flyTo(robot: Robot, to: Point): number {
     this.clearBubble(robot)
     const from: Point = { x: robot.sprite.x, y: robot.sprite.y }
-    const pts = path(from, spotPoint(s))
+    const pts = path(from, to)
     const total = Math.max(400, (pathLength(from, pts) / SPEED) * 1000)
     robot.flying = true
     robot.sprite.setTexture(`${robot.id}-fly`)
@@ -461,7 +517,7 @@ export class OfficeScene extends Phaser.Scene {
       prev = p
       return { p, ms, flip }
     })
-    this.tweens.chain({
+    robot.flight = this.tweens.chain({
       targets: robot.sprite,
       tweens: steps.map(({ p, ms, flip }) => ({
         x: p.x,
@@ -481,6 +537,103 @@ export class OfficeScene extends Phaser.Scene {
       },
     })
     return total + 150
+  }
+
+  // ---- chores (between requests) ---------------------------------------------------------
+
+  private isFree(r: Robot): boolean {
+    return (
+      !r.busy && !r.queue.length && !r.flying && !r.chore && !r.bubble &&
+      this.time.now >= r.nextChoreAt && this.isAt(r, { desk: r.id })
+    )
+  }
+
+  private startChore(robot: Robot): void {
+    const options = choresFor(robot.id)
+    const chore = options[Math.floor(Math.random() * options.length)]
+    const token = ++this.choreToken
+    const state = { token, timers: [] as Phaser.Time.TimerEvent[], anim: [] as Effect[] }
+    robot.chore = state
+    const later = (ms: number, fn: () => void) =>
+      state.timers.push(this.time.delayedCall(ms, () => robot.chore?.token === token && fn()))
+    later(this.flyTo(robot, chore.at), () => {
+      robot.label.setText(chore.label)
+      this.animate(robot, chore, state.anim)
+      later(chore.ms, () => {
+        for (const e of state.anim.splice(0)) e.remove()
+        this.endAnim(robot)
+        robot.label.setText('')
+        later(this.fly(robot, { desk: robot.id }), () => {
+          robot.chore = undefined
+          robot.nextChoreAt = this.time.now + choreDelay()
+        })
+      })
+    })
+  }
+
+  /** A real event arrived: drop whatever chore is going on, right where the robot is. */
+  private stopChore(robot: Robot): boolean {
+    if (!robot.chore) return false
+    for (const e of [...robot.chore.timers, ...robot.chore.anim]) e.remove()
+    robot.chore = undefined
+    robot.flight?.stop()
+    robot.flying = false
+    this.endAnim(robot)
+    robot.label.setText('')
+    robot.sprite.setTexture(`${robot.id}-open`).setFlipX(false)
+    robot.nextChoreAt = this.time.now + choreDelay()
+    return !this.isAt(robot, { desk: robot.id })
+  }
+
+  private animate(robot: Robot, chore: Chore, extras: Effect[]): void {
+    const s = robot.sprite
+    const baseY = s.y
+    if (chore.anim === 'drink') {
+      // pick up the bottle, tip it back a few times, put it back
+      this.bottle.setData('home', { x: this.bottle.x, y: this.bottle.y })
+      this.bottle.setPosition(s.x - 22, baseY - 14).setDepth(s.depth + 1)
+      extras.push(this.tweens.add({ targets: this.bottle, angle: 70, y: baseY - 30, duration: 450, yoyo: true, hold: 300, repeat: 2 }))
+    } else if (chore.anim === 'run') {
+      let step = 0
+      extras.push(
+        this.time.addEvent({
+          delay: 140,
+          loop: true,
+          callback: () => {
+            step++
+            s.setTexture(`${robot.id}-${step % 2 ? 'run' : 'open'}`)
+            s.y = baseY - (step % 2 ? 2 : 0)
+            for (const b of this.belt) b.x = b.x - 3 < s.x - 34 ? b.x + 57 : b.x - 3
+          },
+        }),
+      )
+    } else if (chore.anim === 'look') {
+      extras.push(this.tweens.add({ targets: s, y: baseY - 3, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }))
+      extras.push(this.time.addEvent({ delay: 1200, loop: true, callback: () => s.setFlipX(!s.flipX) }))
+    } else {
+      extras.push(
+        this.time.addEvent({
+          delay: 140,
+          loop: true,
+          callback: () => s.setTexture(`${robot.id}-${Math.random() > 0.5 ? 'blink' : 'open'}`),
+        }),
+      )
+    }
+    s.setData('baseY', baseY)
+  }
+
+  private endAnim(robot: Robot): void {
+    const s = robot.sprite
+    if (s.getData('baseY') !== undefined && !robot.flying) s.y = s.getData('baseY')
+    s.setData('baseY', undefined)
+    s.setFlipX(false)
+    if (!robot.flying) s.setTexture(`${robot.id}-open`)
+    const home = this.bottle.getData('home')
+    if (home && robot.id === 'health_coach') {
+      this.tweens.killTweensOf(this.bottle)
+      this.bottle.setPosition(home.x, home.y).setAngle(0).setDepth(0)
+      this.bottle.setData('home', undefined)
+    }
   }
 
   private stopTyping(robot: Robot): void {
