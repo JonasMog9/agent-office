@@ -9,8 +9,8 @@ Every message ends with "Not financial advice."
 
 ## How a coin gets through
 
-Every 10 minutes the scanner pulls the trending and top-volume pools on Solana (Base and
-Ethereum can be switched on) from GeckoTerminal (CoinGecko's DEX data). Coins at most 48 hours old go through two
+Every 10 minutes the scanner pulls the trending and top-volume pools on Solana, Base and
+Ethereum from GeckoTerminal (CoinGecko's DEX data). Coins at most 48 hours old go through two
 gates, and **both** must pass.
 
 **1. The market screen** (`backend/app/scout/screen.py`):
@@ -69,7 +69,7 @@ Message the bot:
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `SCOUT_ENABLED` | `true` | `false` stops the scans |
-| `SCOUT_CHAINS` | `solana` | which chains to scan (`base` and `eth` work too) |
+| `SCOUT_CHAINS` | `solana,base,eth` | which chains to scan |
 | `SCOUT_SCAN_MINUTES` | `10` | how often |
 | `SCOUT_MIN_VOLUME_USD` | `1000000` | the volume bar ("crazy volume") |
 | `SCOUT_MAX_ALERTS_PER_DAY` | `3` | safety cap on messages |
