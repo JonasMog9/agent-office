@@ -4,7 +4,7 @@ Guidance for Claude Code (and humans) working in this repo.
 
 ## What this is
 
-Agent Office: a cloud-hosted team of three AI agents (Manager, Health Coach, Market Scout) controlled from Telegram and shown live as pixel characters in a 2D office. **Read [PLAN.md](PLAN.md) first.** It holds the goal, the architecture, the Health Coach formulas, and the build phases with their checklists. Work one phase at a time, in order, and tick the PLAN.md boxes when a phase's "done when" condition is met.
+Agent Office: a cloud-hosted team of three AI agents (Manager, Health Coach, Market Scout) controlled from Telegram and shown live as animated robots in a 2D office. **Read [PLAN.md](PLAN.md) first.** It holds the goal, the architecture, the Health Coach formulas, and the build phases with their checklists. Work one phase at a time, in order, and tick the PLAN.md boxes when a phase's "done when" condition is met.
 
 ## Stack
 

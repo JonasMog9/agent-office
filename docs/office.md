@@ -1,29 +1,41 @@
-# The pixel office (Phase 5)
+# The office (Phase 5)
 
-A web page where the three agents act out every request live. Each one is a small hover robot
-in its own room:
+A web page where the three agents act out every request live: a night-time office floor seen
+from above, with the rooms far apart and joined by long glass hallways.
+
+```
+   Health Lab ─┐        (uplink · to you)        ┌─ Trading Desk
+               └───────────────┼──────────────────┘   ← the main hallway
+                         Command Room
+```
 
 | Robot | Room | What's in it |
 | --- | --- | --- |
-| Health Coach (pink and purple) | Health Lab | heart-rate monitor, treadmill, dumbbells, water bottle |
-| Manager (blue) | Command Room | status board with a light per agent, antenna mast |
-| Market Scout (caped, with a cowl and a yellow belt) | Trading Desk | candlestick screens, scrolling ticker, laptop |
+| Health Coach: pink and purple, a sweatband, a heart on its chest | Health Lab | live heart-rate trace, water cooler, treadmill, yoga mat |
+| Manager: blue, a headset and a gold tie | Command Room | team status board (a live light per agent), city window, coffee machine |
+| Market Scout: a cowl with pointed ears, a cape, a yellow belt | Trading Desk | live candlestick screens, ticker, server racks, the bat-signal, a giant coin |
 
-Between requests the robots potter about their rooms every 7–16 seconds: the Health Coach
-drinks from its water bottle or jogs on the treadmill, the Manager checks the status board and
-the antenna, the Market Scout watches the charts or types on the laptop. A real event
-interrupts a chore at once and the robot flies back to its desk. The chores are listed in
-`frontend/src/office/chores.ts`.
+**How a request plays out.** The Manager thinks at its desk, flies out of the Command Room, all
+the way down the hallway and into the specialist's room. Only then does the specialist think,
+run its tools (a chip shows which, and its desk hologram lights up) and answer in a speech
+bubble. Then the Manager carries the answer back along the hallways to the uplink, which beams
+it to you. Every event goes onto one timeline (`frontend/src/office/timeline.ts`), so nothing
+plays before the step before it has finished.
 
-Each room has a sliding door (it opens as a robot passes) and a short corridor down to a shared
-hallway, which leads to a glowing exit. The Manager flies out through its door and along the
-hallway into the Health Coach's room,
-the Coach's screen flickers while its tools run, answers appear in speech bubbles, and the
-Manager carries the reply to the exit ("to you", i.e. Telegram).
+**Between requests** the robots potter about their rooms every 7–16 seconds. The Health Coach
+drinks water, jogs on the treadmill or stretches on the mat. The Manager checks the team board,
+has a coffee or watches the city. The Scout watches the charts, works at the servers or stands
+in the bat-signal. A real event interrupts a chore at once, and the robot flies back to its
+desk (`frontend/src/office/chores.ts`).
 
-To change the look: colours and room names are in `THEME` at the top of
-`frontend/src/office/OfficeScene.ts`, the robot pixel art is the `ROBOT` and `CAPED` grids below it, and room
-positions and flight paths are in `frontend/src/office/layout.ts`.
+**Camera.** *Overview* shows the whole floor; *Follow* zooms in on whoever is acting (both
+robots when one visits another). Phones start in Follow, wider screens in Overview. Speech
+bubbles and name tags are drawn at a fixed screen size, so they stay readable at any zoom.
+
+**Changing the look.** Room colours: `THEMES` in `frontend/src/office/art/building.ts`. Robot
+colours and accessories: `LOOKS` and the painters in `frontend/src/office/art/robot.ts`. Floor
+plan and routes: `frontend/src/office/world.ts`. Everything is painted in code with the Canvas 2D
+API (gradients, soft shadows, glows), so there are no image files or licences to manage.
 
 ## Live vs. demo
 
@@ -52,5 +64,5 @@ labelled as such. That's the version to share publicly.
 cd frontend
 npm install
 npm run dev        # http://localhost:5173 (demo, or ?key=... for live)
-npm test           # choreography rules and flight paths
+npm test           # routes, the timeline, chores, event rules
 ```

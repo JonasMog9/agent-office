@@ -1,688 +1,430 @@
-// The office: three themed rooms, each with a sliding door and a corridor down to a shared
-// hallway, and a robot per agent, all drawn in code (no image assets, so nothing to license).
-// Events arrive through `play(event)` and each robot acts its own out in order: fly between
-// rooms through the corridors and hallway, think, work at its console, talk in a speech bubble,
-// carry answers to the exit, fly home when idle.
+// The office. Three rooms far apart on a night-time floor, joined by long hallways, with a robot
+// per agent. Every event the backend sends becomes one step on a single timeline (timeline.ts),
+// so the story plays in order: the Manager flies all the way to the Health Lab before the Coach
+// answers, and carries the answer back out to the uplink ("to you", i.e. Telegram).
+//
+// Two cameras: the office camera (zoomed out to show the whole floor, or following whoever is
+// acting) and an overlay camera at screen scale for the bubbles and name tags.
 
 import Phaser from 'phaser'
-import {
-  AGENTS,
-  NAMES,
-  bubbleText,
-  duration,
-  toAction,
-  type Action,
-  type AgentId,
-  type OfficeEvent,
-  type Spot,
-} from './choreography'
+import { AGENTS, NAMES, bubbleText, duration, toAction, type Action, type AgentId, type OfficeEvent } from './choreography'
 import { choreDelay, choresFor, type Chore } from './chores'
+import { Overlay } from './overlay'
+import { Timeline } from './timeline'
+import { EXIT, WORLD_H, WORLD_W, path, placeAt, spotPoint } from './world'
 import {
-  DOOR_W,
-  EXIT,
-  HALL_BOTTOM,
-  HALL_TOP,
-  HALL_Y,
-  HEIGHT,
-  ROOM_BOTTOM,
-  ROOM_W,
-  WIDTH,
-  path,
-  pathLength,
-  roomOf,
-  roomX,
-  spotPoint,
-  type Point,
-} from './layout'
+  candles,
+  drawBackground,
+  drawDoors,
+  drawHallways,
+  drawRooms,
+  drawUplink,
+  ecg,
+  hallwayPulses,
+  holoLines,
+  serverLights,
+  statusBoard,
+  ticker,
+  treadmillBelt,
+  type BoardState,
+  type Desk,
+  type Door,
+  type Uplink,
+} from './art/building'
+import { hexNum, paint, rr, vgrad } from './art/paint'
+import { Bot, type BotState } from './art/robot'
 
-export { HEIGHT, WIDTH }
+const SPEED = 300 // flying speed, world units per second
+const TAG_COLOR: Record<AgentId, string> = { health_coach: '#ff6fb1', manager: '#5d8dff', market_scout: '#fcc419' }
+export type View = 'overview' | 'follow'
 
-const PX = 3 // one art pixel on screen
-const SPEED = 170 // robot flying speed, px/s
-const TELEGRAM = 0x229ed9
-
-interface Theme {
-  title: string
-  floor: [number, number]
-  wall: number
-  body: number
-  dark: number
-  light: number // antenna and chest light
-}
-
-const THEME: Record<AgentId, Theme> = {
-  health_coach: {
-    title: 'HEALTH LAB',
-    floor: [0x352a40, 0x3b2f47],
-    wall: 0x6a3d7a,
-    body: 0xf783ac, // pink
-    dark: 0x9c36b5, // purple
-    light: 0xda77f2,
-  },
-  manager: {
-    title: 'COMMAND ROOM',
-    floor: [0x2c3350, 0x313958],
-    wall: 0x44507a,
-    body: 0x4c6ef5,
-    dark: 0x364fc7,
-    light: 0xffd43b,
-  },
-  market_scout: {
-    title: 'TRADING DESK',
-    floor: [0x3d3128, 0x43362c],
-    wall: 0x6b4f3a,
-    body: 0xfcc419, // bat-signal yellow, for its door and corridor lights
-    dark: 0x25262b,
-    light: 0xfcc419,
-  },
-}
-
-// A 16×16 robot, one letter per art pixel. Frames: eyes open, eyes shut (blink, typing), and
-// hovering with its jet lit (flying).
-const ROBOT = [
-  '.......LL.......',
-  '.......AA.......',
-  '....HHHHHHHH....',
-  '...HHHHHHHHHH...',
-  '...HVVVVVVVVH...',
-  '...HVEEVVEEVH...',
-  '...HVVVVVVVVH...',
-  '...HHHHHHHHHH...',
-  '.....NNNNNN.....',
-  '..RBBBBBBBBBBR..',
-  '.RRBBBBCCBBBBRR.',
-  '.R.BBBBCCBBBB.R.',
-  '.R.BBBBBBBBBB.R.',
-  '...DDDDDDDDDD...',
-  '....TTTTTTTT....',
-]
-// The Market Scout wears a cowl with pointed ears, a cape and a yellow belt and emblem.
-const CAPED = [
-  '...K........K...',
-  '...KK......KK...',
-  '...KKKKKKKKKK...',
-  '...KKKKKKKKKK...',
-  '...KWWWKKWWWK...',
-  '...KKKKKKKKKK...',
-  '...KKHHHHHHKK...',
-  '....KHHHHHHK....',
-  '.....NNNNNN.....',
-  '.KKGGGGGGGGGGKK.',
-  'KKKGGYYYYYYGGKKK',
-  'KK.GGYKYYKYGG.KK',
-  'KK.GGGGGGGGGG.KK',
-  'KK.YYYYYYYYYY.KK',
-  'KKK.TTTTTTTT.KKK',
-]
-const FEET = { stand: '...TTTTTTTTTT...', fly: '.....FFFFFF.....', run: '...TT......TT...' }
-const SPRITES: Record<AgentId, { rows: string[]; eye: string; shut: string }> = {
-  health_coach: { rows: ROBOT, eye: 'E', shut: 'V' },
-  manager: { rows: ROBOT, eye: 'E', shut: 'V' },
-  market_scout: { rows: CAPED, eye: 'W', shut: 'K' },
-}
-
-type Effect = Phaser.Tweens.Tween | Phaser.Time.TimerEvent
-
-interface Robot {
-  id: AgentId
-  sprite: Phaser.GameObjects.Sprite
-  label: Phaser.GameObjects.Text
-  bubble?: Phaser.GameObjects.Container
-  screen: Phaser.GameObjects.Rectangle
-  queue: Action[]
-  busy: boolean
-  flying: boolean
-  typing?: Phaser.Time.TimerEvent
-  flight?: Phaser.Tweens.TweenChain
-  chore?: { token: number; timers: Phaser.Time.TimerEvent[]; anim: Effect[] }
-  nextChoreAt: number
-}
-
-interface Door {
-  x: number
-  left: Phaser.GameObjects.Rectangle
-  right: Phaser.GameObjects.Rectangle
-  light: Phaser.GameObjects.Rectangle
-  open: number // 0 shut … 1 fully open
+interface ChoreRun {
+  chore: Chore
+  timers: Phaser.Time.TimerEvent[]
+  prop?: Phaser.GameObjects.Image
 }
 
 export class OfficeScene extends Phaser.Scene {
-  private robots = new Map<AgentId, Robot>()
+  private bots = new Map<AgentId, Bot>()
+  private desks!: Record<AgentId, Desk>
   private doors: Door[] = []
-  private bottle!: Phaser.GameObjects.Container
-  private belt: Phaser.GameObjects.Rectangle[] = []
-  private choreToken = 0
+  private uplink!: Uplink
+  private overlay!: Overlay
+  private uiLayer!: Phaser.GameObjects.Layer
+  private uiCam!: Phaser.Cameras.Scene2D.Camera
+  private creatingUi = false
+  private timeline = new Timeline<Action>((ms, fn) => this.time.delayedCall(ms, fn))
+  private chores = new Map<AgentId, ChoreRun>()
+  private nextChore = new Map<AgentId, number>()
+  private tick: ((t: number) => void)[] = []
+  private board!: (s: Record<AgentId, BoardState>) => void
+  private belt!: (running: boolean, delta: number) => void
+  private view: View = 'overview'
+  private focus: AgentId = 'manager'
+  private camTarget = new Phaser.Math.Vector2(WORLD_W / 2, WORLD_H / 2)
+  readonly dpr: number
 
-  constructor() {
+  constructor(dpr: number) {
     super('office')
+    this.dpr = dpr
   }
 
   create(): void {
-    this.drawHallway()
-    for (const id of AGENTS) this.drawRoom(id)
-    for (const id of AGENTS) this.doors.push(this.makeDoor(id))
-    for (const id of AGENTS) this.makeTextures(id)
-    for (const id of AGENTS) this.robots.set(id, this.makeRobot(id))
-    // Robots blink now and then while standing still.
+    const cam = this.cameras.main
+    cam.setBackgroundColor('#070a14')
+    this.uiCam = this.cameras.add(0, 0, this.scale.width, this.scale.height).setOrigin(0, 0).setZoom(this.dpr)
+    this.uiLayer = this.add.layer()
+    cam.ignore(this.uiLayer)
+    // Everything that isn't overlay is office: keep it off the overlay camera.
+    this.events.on(Phaser.Scenes.Events.ADDED_TO_SCENE, (obj: Phaser.GameObjects.GameObject) => {
+      if (!this.creatingUi && (obj as unknown) !== this.uiLayer) this.uiCam.ignore(obj)
+    })
+
+    drawBackground(this)
+    drawHallways(this)
+    hallwayPulses(this)
+    this.desks = drawRooms(this)
+    this.doors = drawDoors(this)
+    this.uplink = drawUplink(this)
+    this.tick.push(ecg(this))
+    candles(this)
+    serverLights(this)
+    ticker(this)
+    this.board = statusBoard(this)
+    this.belt = treadmillBelt(this)
+    this.props()
+
+    this.overlay = new Overlay(this, this.uiLayer, this.dpr)
+    for (const id of AGENTS) {
+      const at = spotPoint({ desk: id })
+      this.bots.set(id, new Bot(this, id, at.x, at.y))
+      this.ui(() => this.overlay.add(id, NAMES[id], hexNum(TAG_COLOR[id])))
+      this.nextChore.set(id, this.time.now + 4000 + Math.random() * 6000)
+    }
+
+    // blinking, and pottering about between requests
     this.time.addEvent({
-      delay: 2600,
+      delay: 900,
       loop: true,
       callback: () => {
-        for (const r of this.robots.values()) {
-          if (r.flying || r.typing || Math.random() > 0.5) continue
-          r.sprite.setTexture(`${r.id}-blink`)
-          this.time.delayedCall(160, () => !r.flying && !r.typing && r.sprite.setTexture(`${r.id}-open`))
-        }
+        for (const b of this.bots.values()) if (Math.random() < 0.3) b.blink()
       },
     })
-    // Between requests, robots potter about their rooms.
     this.time.addEvent({
       delay: 500,
       loop: true,
       callback: () => {
-        for (const r of this.robots.values()) if (this.isFree(r)) this.startChore(r)
+        for (const id of AGENTS) if (this.isFree(id)) this.startChore(id)
       },
     })
+
+    this.scale.on(Phaser.Scale.Events.RESIZE, () => this.layout(false))
+    this.view = this.cssWidth() < 720 ? 'follow' : 'overview'
+    this.layout(false)
   }
 
-  /** Doors slide open while a robot is passing through. */
-  update(): void {
-    for (const d of this.doors) {
-      const near = [...this.robots.values()].some(
-        (r) => Math.abs(r.sprite.x - d.x) < 34 && r.sprite.y > ROOM_BOTTOM - 70 && r.sprite.y < HALL_TOP + 50,
-      )
-      d.open += ((near ? 1 : 0) - d.open) * 0.2
-      d.left.scaleX = d.right.scaleX = Math.max(0.04, 1 - d.open)
-      d.light.setFillStyle(d.open > 0.5 ? 0x51cf66 : 0xff6b6b)
+  /** Create overlay objects: they go on the overlay layer and camera only. */
+  private ui(fn: () => void): void {
+    this.creatingUi = true
+    try {
+      fn()
+    } finally {
+      this.creatingUi = false
     }
   }
 
-  /** Queue one event; each robot acts out its own events in order. */
+  private cssWidth(): number {
+    return this.scale.width / this.dpr
+  }
+
+  // ---- cameras ------------------------------------------------------------------------------
+
+  setView(view: View): void {
+    this.view = view
+    this.layout(true)
+  }
+
+  getView(): View {
+    return this.view
+  }
+
+  private fitZoom(): number {
+    const { width, height } = this.scale
+    return Math.min(width / (WORLD_W + 40), height / (WORLD_H + 40))
+  }
+
+  private layout(animate: boolean): void {
+    const { width, height } = this.scale
+    const cam = this.cameras.main
+    cam.setSize(width, height)
+    this.uiCam.setSize(width, height)
+    if (this.view === 'overview') {
+      cam.stopFollow()
+      const z = this.fitZoom()
+      if (animate) {
+        cam.zoomTo(z, 700, 'Sine.easeInOut')
+        cam.pan(WORLD_W / 2, WORLD_H / 2, 700, 'Sine.easeInOut')
+      } else {
+        cam.setZoom(z)
+        cam.centerOn(WORLD_W / 2, WORLD_H / 2)
+      }
+    } else {
+      // about one room across on a phone, a room and its hallway on a laptop
+      const across = Phaser.Math.Clamp(this.cssWidth() * 1.6, 640, 1150)
+      const z = Math.max(this.fitZoom() * 1.5, width / across)
+      const bot = this.bots.get(this.focus)
+      if (animate) cam.zoomTo(z, 700, 'Sine.easeInOut')
+      else cam.setZoom(z)
+      if (bot) {
+        this.camTarget.set(...this.framing())
+        if (!animate) cam.centerOn(this.camTarget.x, this.camTarget.y)
+        cam.startFollow(this.camTarget, false, 0.09, 0.09)
+      }
+    }
+  }
+
+  private follow(id: AgentId): void {
+    this.focus = id
+  }
+
+  /** Where the follow camera looks: the robot acting, or both robots when one visits another. */
+  private framing(): [number, number] {
+    const f = this.bots.get(this.focus)!
+    const room = placeAt(f)
+    let other: { x: number; y: number } | undefined
+    if (room && room !== 'uplink' && room !== f.id) other = this.bots.get(room)
+    else if (room === f.id)
+      other = [...this.bots.values()].find((b) => b !== f && placeAt(b) === room && !b.flying)
+    if (other) return [(f.x + other.x) / 2, (f.y + other.y) / 2 - 50]
+    return [f.x, f.y - 50]
+  }
+
+  // ---- events → the timeline ----------------------------------------------------------------
+
+  /** Queue one event; it plays when everything before it has. */
   play(event: OfficeEvent): void {
-    const robot = this.robots.get(event.agent)
-    if (!robot) return
+    const bot = this.bots.get(event.agent)
+    if (!bot) return
     const action = toAction(event)
-    // Interrupted mid-chore: head back to the desk first, unless the event flies off anyway.
-    if (this.stopChore(robot) && action.kind !== 'walk') robot.queue.push({ kind: 'walk', agent: robot.id, to: { desk: robot.id } })
-    robot.queue.push(action)
-    this.next(robot)
+    // Interrupted mid-chore: head back to the desk first, unless this flies off anyway.
+    if (this.stopChore(event.agent) && action.kind !== 'walk' && !this.atHome(event.agent))
+      this.enqueue({ kind: 'walk', agent: event.agent, to: { desk: event.agent } })
+    this.enqueue(action)
   }
 
-  // ---- the building ------------------------------------------------------------------
+  private enqueue(action: Action, front = false): void {
+    const step = { item: action, play: (a: Action, hurry: number) => this.act(a, hurry) }
+    if (front) this.timeline.pushFront(step)
+    else this.timeline.push(step)
+  }
 
-  private drawHallway(): void {
-    const g = this.add.graphics()
-    // outer wall below the rooms, with windows onto a night sky between the corridors
-    g.fillStyle(0x14141b).fillRect(0, ROOM_BOTTOM, WIDTH, HEIGHT - ROOM_BOTTOM)
-    const edges = [0, ...AGENTS.flatMap((id) => [roomX(id) - DOOR_W / 2 - 3, roomX(id) + DOOR_W / 2 + 3]), WIDTH]
-    for (let i = 0; i < edges.length; i += 2) {
-      const [a, b] = [edges[i] + 12, edges[i + 1] - 12]
-      if (b - a < 20) continue
-      g.fillStyle(0x2b2b36).fillRect(a - 2, ROOM_BOTTOM + 10, b - a + 4, 26)
-      g.fillStyle(0x0b1026).fillRect(a, ROOM_BOTTOM + 12, b - a, 22)
-      for (let k = 0; k < (b - a) / 9; k++) {
-        const star = this.add.rectangle(a + ((k * 37) % (b - a)), ROOM_BOTTOM + 14 + ((k * 13) % 18), 1, 1, 0xffffff)
-        this.tweens.add({ targets: star, alpha: 0.2, duration: 900 + ((k * 211) % 1400), yoyo: true, repeat: -1 })
-      }
-      g.fillStyle(0x2b2b36).fillRect((a + b) / 2 - 1, ROOM_BOTTOM + 12, 2, 22) // window bar
+  private atHome(id: AgentId): boolean {
+    const bot = this.bots.get(id)!
+    const p = spotPoint({ desk: id })
+    return Math.hypot(bot.x - p.x, bot.y - p.y) < 2
+  }
+
+  /** Nothing playing or waiting: the office is between requests. */
+  quiet(): boolean {
+    return !this.timeline.busy && this.timeline.waiting().length === 0
+  }
+
+  /** What each robot is up to, for the page around the office. */
+  statuses(): Record<AgentId, string> {
+    const out = {} as Record<AgentId, string>
+    for (const [id, b] of this.bots) {
+      const chore = this.chores.get(id)
+      const words: Partial<Record<BotState, string>> = { think: 'thinking…', work: 'working', talk: 'talking' }
+      out[id] = chore ? chore.chore.label : b.flying ? 'on the move' : (words[b.state] ?? 'idle')
     }
-    // a corridor from each door down to the hallway, floored in its room's colours
-    for (const id of AGENTS) {
-      const t = THEME[id]
-      const cx = roomX(id)
-      for (let y = ROOM_BOTTOM; y < HALL_TOP; y += 9)
-        for (let x = cx - DOOR_W / 2; x < cx + DOOR_W / 2; x += 9)
-          g.fillStyle(((x - cx) / 9 + y / 9) % 2 ? t.floor[0] : t.floor[1]).fillRect(x, y, 9, 9)
-      g.fillStyle(0x2b2b36).fillRect(cx - DOOR_W / 2 - 3, ROOM_BOTTOM, 3, HALL_TOP - ROOM_BOTTOM)
-      g.fillRect(cx + DOOR_W / 2, ROOM_BOTTOM, 3, HALL_TOP - ROOM_BOTTOM)
-      g.fillStyle(t.body).fillRect(cx - DOOR_W / 2 - 3, ROOM_BOTTOM + 18, 3, 6) // wall lights
-      g.fillRect(cx + DOOR_W / 2, ROOM_BOTTOM + 18, 3, 6)
-    }
-    // the hallway: metal floor, ceiling light pools, a glowing guide strip to the exit
-    for (let x = 0; x < WIDTH; x += 20)
-      for (let y = HALL_TOP; y < HALL_BOTTOM; y += 20)
-        g.fillStyle((x / 20 + (y - HALL_TOP) / 20) % 2 ? 0x2a2d38 : 0x262934).fillRect(x, y, 20, 20)
-    g.fillStyle(0x3a3f4f).fillRect(0, HALL_TOP, WIDTH, 3)
-    for (const id of AGENTS) g.fillStyle(THEME[id].floor[1]).fillRect(roomX(id) - DOOR_W / 2, HALL_TOP, DOOR_W, 3)
-    g.fillStyle(0xffffff, 0.02)
-    for (let x = 50; x < WIDTH; x += 110) g.fillEllipse(x, HALL_Y - 10, 90, 60)
-    g.fillStyle(0x3a3f4f).fillRect(0, HALL_BOTTOM, WIDTH, 3)
-    g.fillStyle(0x1b1b24).fillRect(0, HALL_BOTTOM + 3, WIDTH, HEIGHT - HALL_BOTTOM - 3)
-    for (let x = 14; x < WIDTH; x += 28) g.fillStyle(0x2f9e44, 0.5).fillRect(x, HALL_BOTTOM + 9, 6, 2) // floor lights
-    const guideY = HALL_Y + 16
-    g.fillStyle(0x1c7ed6, 0.35).fillRect(12, guideY, EXIT.x - 12, 2)
-    for (let k = 0; k < 5; k++) {
-      const pulse = this.add.rectangle(12, guideY + 1, 8, 2, 0x74c0fc)
-      this.tweens.add({
-        targets: pulse,
-        x: EXIT.x,
-        duration: 3200,
-        delay: k * 640,
-        repeat: -1,
-        onRepeat: () => pulse.setX(12),
-      })
-    }
-    // a plant and a bench to make it feel lived in
-    g.fillStyle(0x6b4f3a).fillRect(14, HALL_TOP + 30, 14, 12)
-    g.fillStyle(0x40c057).fillCircle(21, HALL_TOP + 24, 8).fillCircle(15, HALL_TOP + 20, 5).fillCircle(27, HALL_TOP + 19, 5)
-    g.fillStyle(0x495057).fillRect(roomX('manager') + 52, HALL_TOP + 8, 48, 6)
-    g.fillStyle(0x343a40).fillRect(roomX('manager') + 56, HALL_TOP + 14, 4, 8).fillRect(roomX('manager') + 92, HALL_TOP + 14, 4, 8)
-    // the exit: a glowing portal in the end wall; answers leave here for the owner's Telegram
-    g.fillStyle(0x0b1026).fillRect(WIDTH - 12, HALL_TOP + 14, 12, 66)
-    const portal = this.add.rectangle(WIDTH - 6, HALL_TOP + 47, 8, 62, TELEGRAM)
-    this.tweens.add({ targets: portal, alpha: 0.45, duration: 1100, yoyo: true, repeat: -1 })
-    g.fillStyle(TELEGRAM, 0.12).fillEllipse(WIDTH - 10, HALL_TOP + 47, 60, 90)
-    g.fillStyle(0x101418).fillRoundedRect(EXIT.x - 48, HALL_TOP + 6, 54, 14, 3)
-    this.text(EXIT.x - 21, HALL_TOP + 8, 'TO YOU ✈', '#74c0fc', 9).setOrigin(0.5, 0)
+    return out
   }
 
-  private makeDoor(id: AgentId): Door {
-    const x = roomX(id)
-    const half = DOOR_W / 2
-    const g = this.add.graphics()
-    g.fillStyle(THEME[id].body).fillRect(x - half - 4, ROOM_BOTTOM - 6, 4, 12).fillRect(x + half, ROOM_BOTTOM - 6, 4, 12)
-    const panel = (px: number, ox: number) =>
-      this.add.rectangle(px, ROOM_BOTTOM, half, 8, 0x5c677d).setOrigin(ox, 0.5).setStrokeStyle(1, 0x343a40)
-    const light = this.add.rectangle(x, ROOM_BOTTOM - 9, 6, 3, 0xff6b6b)
-    return { x, left: panel(x - half, 0), right: panel(x + half, 1), light, open: 0 }
-  }
-
-  private drawRoom(id: AgentId): void {
-    const t = THEME[id]
-    const x0 = ROOM_W * roomOf(id)
-    const cx = roomX(id)
-    const g = this.add.graphics()
-    // floor and back wall
-    for (let x = x0; x < x0 + ROOM_W; x += 16)
-      for (let y = 64; y < ROOM_BOTTOM; y += 16)
-        g.fillStyle(((x - x0) / 16 + y / 16) % 2 ? t.floor[0] : t.floor[1]).fillRect(x, y, 16, 16)
-    g.fillStyle(t.wall).fillRect(x0, 0, ROOM_W, 64)
-    g.fillStyle(0x1b1b24).fillRect(x0, 58, ROOM_W, 6)
-    // side walls between rooms, and the bottom wall with a doorway
-    g.fillStyle(0x15151c)
-    if (roomOf(id) > 0) g.fillRect(x0 - 3, 0, 6, ROOM_BOTTOM)
-    g.fillRect(x0, ROOM_BOTTOM - 4, ROOM_W / 2 - DOOR_W / 2, 8)
-    g.fillRect(cx + DOOR_W / 2, ROOM_BOTTOM - 4, ROOM_W / 2 - DOOR_W / 2, 8)
-    // room sign
-    g.fillStyle(0x1b1b24).fillRoundedRect(cx - 52, 6, 104, 16, 3)
-    this.text(cx, 9, t.title, '#e8e8e8', 10).setOrigin(0.5, 0)
-
-    if (id === 'health_coach') this.healthLab(g, x0)
-    if (id === 'manager') this.commandRoom(g, x0)
-    if (id === 'market_scout') this.tradingDesk(g, x0)
-
-    // the robot's console: a desk with a screen that lights up while it works
-    g.fillStyle(0x495057).fillRect(cx - 40, 166, 80, 22)
-    g.fillStyle(0x343a40).fillRect(cx - 40, 186, 80, 6)
-    g.fillStyle(0x212529).fillRect(cx - 16, 150, 32, 18)
-    this.text(cx, 196, NAMES[id], '#e8e8e8', 10).setOrigin(0.5, 0)
-  }
-
-  private healthLab(g: Phaser.GameObjects.Graphics, x0: number): void {
-    // heart-rate monitor with an ECG trace
-    g.fillStyle(0x101418).fillRect(x0 + 18, 26, 74, 28)
-    g.lineStyle(2, 0xf783ac)
-    const ecg = [0, 0, 0, 0, -10, 12, -4, 0, 0, 0, 0, -8, 9, -2, 0, 0]
-    g.beginPath()
-    ecg.forEach((v, i) => {
-      const x = x0 + 22 + i * 4.3
-      const y = 40 + v
-      if (i) g.lineTo(x, y)
-      else g.moveTo(x, y)
-    })
-    g.strokePath()
-    g.fillStyle(0xff6b6b).fillCircle(x0 + 86, 31, 2)
-    // treadmill in the bottom-left corner, clear of the name label
-    g.fillStyle(0x212529).fillRect(x0 + 12, 238, 62, 12)
-    g.fillStyle(0x495057).fillRect(x0 + 12, 250, 62, 4)
-    g.fillStyle(0x868e96).fillRect(x0 + 12, 214, 4, 26).fillRect(x0 + 12, 212, 18, 4)
-    g.fillStyle(0xf783ac).fillRect(x0 + 18, 213, 6, 2)
-    // belt stripes that roll while someone's jogging
-    for (let k = 0; k < 4; k++) this.belt.push(this.add.rectangle(x0 + 20 + k * 15, 244, 2, 10, 0x343a40))
-    // dumbbell rack along the back wall
-    g.fillStyle(0x495057).fillRect(x0 + 112, 96, 48, 4)
-    for (const dx of [118, 138]) {
-      g.fillStyle(0x212529).fillRect(x0 + dx, 88, 4, 8).fillRect(x0 + dx + 12, 88, 4, 8)
-      g.fillStyle(0xadb5bd).fillRect(x0 + dx + 4, 91, 8, 2)
-    }
-    // water bottle on a shelf (an object, so the Coach can pick it up)
-    g.fillStyle(0x495057).fillRect(x0 + 180, 96, 22, 3)
-    this.bottle = this.add.container(x0 + 191, 96, [
-      this.add.rectangle(0, -9, 10, 18, 0x74c0fc),
-      this.add.rectangle(0, -20, 6, 4, 0x1c7ed6),
-    ])
-  }
-
-  private commandRoom(g: Phaser.GameObjects.Graphics, x0: number): void {
-    // big status screen: three agent status lights
-    g.fillStyle(0x0b1020).fillRect(x0 + 46, 22, 120, 34)
-    g.lineStyle(1, 0x364fc7).strokeRect(x0 + 46, 22, 120, 34)
-    for (const [i, c] of [0xf783ac, 0x4c6ef5, 0xfcc419].entries()) {
-      g.fillStyle(c).fillCircle(x0 + 70 + i * 36, 34, 4)
-      g.fillStyle(0x364fc7).fillRect(x0 + 60 + i * 36, 44, 20, 3)
-    }
-    // console lights on the desk sides and a rug
-    g.fillStyle(0x1f2a4d).fillRoundedRect(x0 + 46, 205, 120, 52, 6)
-    g.lineStyle(2, 0x364fc7).strokeRoundedRect(x0 + 46, 205, 120, 52, 6)
-    for (const [i, c] of [0xffd43b, 0x51cf66, 0xff6b6b, 0x74c0fc].entries())
-      g.fillStyle(c).fillRect(x0 + 72 + i * 20, 180, 5, 3)
-    // antenna mast in the corner
-    g.fillStyle(0x868e96).fillRect(x0 + 192, 80, 3, 40)
-    g.fillStyle(0xffd43b).fillCircle(x0 + 193, 78, 3)
-  }
-
-  private tradingDesk(g: Phaser.GameObjects.Graphics, x0: number): void {
-    // three chart screens with candlesticks
-    for (let s = 0; s < 3; s++) {
-      const sx = x0 + 14 + s * 64
-      g.fillStyle(0x101418).fillRect(sx, 26, 56, 30)
-      for (let c = 0; c < 6; c++) {
-        const up = (c + s) % 3 !== 0
-        const h = 6 + ((c * 7 + s * 3) % 9)
-        const y = 30 + ((c * 5 + s * 4) % 12)
-        g.fillStyle(up ? 0x51cf66 : 0xff6b6b).fillRect(sx + 5 + c * 8, y, 4, h)
-        g.fillRect(sx + 6 + c * 8, y - 2, 2, h + 4)
-      }
-    }
-    // ticker strip (decoration only: the Scout's real briefs come in Phase 6)
-    g.fillStyle(0x101418).fillRect(x0 + 6, 66, ROOM_W - 12, 10)
-    const ticker = this.text(x0 + ROOM_W, 66, '▲ BTC  ▼ ETH  ▲ SOL  ▲ DOGE  ▼ PEPE', '#ffd43b', 8)
-    const clip = this.make.graphics({}, false).fillRect(x0 + 6, 66, ROOM_W - 12, 10)
-    ticker.setMask(clip.createGeometryMask())
-    this.tweens.add({
-      targets: ticker,
-      x: x0 - ticker.width,
-      duration: 9000,
-      repeat: -1,
-      onRepeat: () => ticker.setX(x0 + ROOM_W),
-    })
-    // a second desk with a laptop
-    g.fillStyle(0x6b4f3a).fillRect(x0 + 10, 222, 52, 14)
-    g.fillStyle(0xadb5bd).fillRect(x0 + 24, 214, 22, 8)
-  }
-
-  private text(x: number, y: number, s: string, color: string, size: number): Phaser.GameObjects.Text {
-    return this.add.text(x, y, s, { fontFamily: 'monospace', fontSize: `${size}px`, color })
-  }
-
-  // ---- robots ------------------------------------------------------------------------
-
-  private makeTextures(id: AgentId): void {
-    const t = THEME[id]
-    const colors: Record<string, number> = {
-      L: t.light, A: 0x868e96, H: 0xced4da, V: 0x1b1b24, E: 0x66d9e8, N: 0x868e96,
-      B: t.body, C: t.light, R: 0xadb5bd, D: t.dark, T: 0x495057, F: 0xffa94d,
-      K: 0x16171d, W: 0xf8f9fa, G: 0x8a929e, Y: 0xfcc419,
-    }
-    const { rows, eye, shut } = SPRITES[id]
-    const frames: Record<string, string[]> = {
-      open: [...rows, FEET.stand],
-      blink: [...rows.map((r) => r.replaceAll(eye, shut)), FEET.stand],
-      fly: [...rows, FEET.fly],
-      run: [...rows, FEET.run],
-    }
-    for (const [name, rows] of Object.entries(frames)) {
-      const g = this.make.graphics({}, false)
-      rows.forEach((row, y) =>
-        [...row].forEach((c, x) => {
-          if (c !== '.') g.fillStyle(colors[c]).fillRect(x * PX, y * PX, PX, PX)
-        }),
-      )
-      g.generateTexture(`${id}-${name}`, 16 * PX, 16 * PX)
-      g.destroy()
-    }
-  }
-
-  private makeRobot(id: AgentId): Robot {
-    const { x, y } = spotPoint({ desk: id })
-    const screen = this.add.rectangle(roomX(id), 159, 28, 14, 0x2b3a55)
-    const sprite = this.add.sprite(x, y, `${id}-open`).setOrigin(0.5, 1).setDepth(y)
-    const label = this.text(x, y + 26, '', '#ffd43b', 9).setOrigin(0.5, 0).setDepth(900)
-    return { id, sprite, label, screen, queue: [], busy: false, flying: false, nextChoreAt: this.time.now + choreDelay() }
-  }
-
-  // ---- acting ------------------------------------------------------------------------
-
-  private next(robot: Robot): void {
-    if (robot.busy) return
-    const action = robot.queue.shift()
-    if (!action) return
-    robot.busy = true
-    robot.nextChoreAt = this.time.now + choreDelay() // no chores straight after real work
-    const ms = this.act(robot, action)
-    // Under a backlog, hurry: a long queue would otherwise lag far behind the real run.
-    const speed = robot.queue.length > 6 ? 0.4 : 1
-    this.time.delayedCall(ms * speed, () => {
-      robot.busy = false
-      this.next(robot)
-    })
-  }
-
-  /** Starts an action; returns how long it holds the stage. */
-  private act(robot: Robot, a: Action): number {
-    this.stopTyping(robot)
-    robot.label.setText('')
+  /** Starts an action; returns how long it holds the stage (ms). */
+  private act(a: Action, hurry: number): number {
+    const bot = this.bots.get(a.agent)!
+    this.follow(a.agent)
+    this.nextChore.set(a.agent, this.time.now + choreDelay()) // a rest before any chore
+    if (a.kind !== 'talk') this.overlay.quiet(a.agent)
+    this.overlay.chip(a.agent, null)
     switch (a.kind) {
       case 'think':
-        this.say(robot, '…', true)
-        return duration(a)
-      case 'walk':
-        return this.fly(robot, a.to)
+        bot.setState('think')
+        this.overlay.think(a.agent)
+        return duration(a) * hurry
+      case 'walk': {
+        const to = spotPoint(a.to)
+        const target = 'visit' in a.to ? this.bots.get(a.to.visit) : undefined
+        const ms = bot.flyAlong(path({ x: bot.x, y: bot.y }, to), SPEED / hurry, () => {
+          if (target) {
+            bot.look(target.x - bot.x)
+            target.look(bot.x - target.x)
+          }
+        })
+        return ms + 150
+      }
       case 'work':
-        this.clearBubble(robot)
-        robot.label.setText(a.label)
-        robot.typing = this.time.addEvent({
-          delay: 140,
-          loop: true,
-          callback: () => {
-            robot.screen.setFillStyle(Math.random() > 0.5 ? 0x74c0fc : 0x4dabf7)
-            robot.sprite.setTexture(`${robot.id}-${Math.random() > 0.5 ? 'blink' : 'open'}`)
-          },
-        })
-        return duration(a)
-      case 'talk':
-        this.say(robot, bubbleText(a.text), false)
-        return duration(a)
-      case 'idle':
-        this.time.delayedCall(1200, () => {
-          if (robot.busy || robot.queue.length) return
-          this.clearBubble(robot)
-          if (!this.isAt(robot, { desk: robot.id })) this.fly(robot, { desk: robot.id })
-        })
-        return duration(a)
+        bot.setState('work')
+        this.overlay.chip(a.agent, a.label)
+        return duration(a) * hurry
+      case 'talk': {
+        bot.setState('talk')
+        this.overlay.say(a.agent, bubbleText(a.text), this.cssWidth())
+        if (a.to === 'owner' && Math.hypot(bot.x - EXIT.x, bot.y - EXIT.y) < 40) this.uplink.burst()
+        return duration(a) * Math.max(hurry, 0.75)
+      }
+      case 'idle': {
+        bot.setState('idle')
+        // Away from the desk with nothing else to do there: fly home next.
+        const next = this.timeline.waiting().find((x) => x.agent === a.agent)
+        if (!this.atHome(a.agent) && next?.kind !== 'walk')
+          this.enqueue({ kind: 'walk', agent: a.agent, to: { desk: a.agent } }, true)
+        return 250
+      }
     }
   }
 
-  private isAt(robot: Robot, s: Spot): boolean {
-    const p = spotPoint(s)
-    return Math.abs(robot.sprite.x - p.x) < 1 && Math.abs(robot.sprite.y - p.y) < 1
-  }
+  // ---- chores -------------------------------------------------------------------------------
 
-  /** Fly along the hallway route to a spot; returns the flight time. */
-  private fly(robot: Robot, s: Spot): number {
-    return this.flyTo(robot, spotPoint(s))
-  }
-
-  private flyTo(robot: Robot, to: Point): number {
-    this.clearBubble(robot)
-    const from: Point = { x: robot.sprite.x, y: robot.sprite.y }
-    const pts = path(from, to)
-    const total = Math.max(400, (pathLength(from, pts) / SPEED) * 1000)
-    robot.flying = true
-    robot.sprite.setTexture(`${robot.id}-fly`)
-    let prev = from
-    const steps = pts.map((p) => {
-      const ms = Math.max(60, (Math.hypot(p.x - prev.x, p.y - prev.y) / SPEED) * 1000)
-      const flip = p.x < prev.x
-      prev = p
-      return { p, ms, flip }
+  private props(): void {
+    paint(this, 'cup', 12, 16, (ctx) => {
+      ctx.beginPath()
+      ctx.moveTo(1, 1)
+      ctx.lineTo(11, 1)
+      ctx.lineTo(9, 15)
+      ctx.lineTo(3, 15)
+      ctx.closePath()
+      ctx.fillStyle = vgrad(ctx, 1, 15, [[0, '#ffffff'], [1, '#c9d3e6']])
+      ctx.fill()
+      ctx.fillStyle = 'rgba(90,170,255,.8)'
+      ctx.fillRect(2.4, 3, 7.2, 3)
     })
-    robot.flight = this.tweens.chain({
-      targets: robot.sprite,
-      tweens: steps.map(({ p, ms, flip }) => ({
-        x: p.x,
-        y: p.y,
-        duration: ms,
-        ease: 'Linear',
-        onStart: () => robot.sprite.setFlipX(flip),
-        onUpdate: () => {
-          robot.sprite.setDepth(robot.sprite.y)
-          robot.label.setPosition(robot.sprite.x, robot.sprite.y + 26)
-        },
-      })),
-      onComplete: () => {
-        robot.flying = false
-        robot.sprite.setTexture(`${robot.id}-open`).setFlipX(false)
-        robot.label.setPosition(robot.sprite.x, robot.sprite.y + 26)
-      },
+    paint(this, 'mug', 16, 14, (ctx) => {
+      rr(ctx, 1, 1, 11, 12, 3)
+      ctx.fillStyle = vgrad(ctx, 1, 13, [[0, '#ffd43b'], [1, '#e0a400']])
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(12.5, 7, 3, -Math.PI / 2, Math.PI / 2)
+      ctx.strokeStyle = '#e0a400'
+      ctx.lineWidth = 1.6
+      ctx.stroke()
     })
-    return total + 150
   }
 
-  // ---- chores (between requests) ---------------------------------------------------------
-
-  private isFree(r: Robot): boolean {
-    return (
-      !r.busy && !r.queue.length && !r.flying && !r.chore && !r.bubble &&
-      this.time.now >= r.nextChoreAt && this.isAt(r, { desk: r.id })
-    )
+  private isFree(id: AgentId): boolean {
+    const bot = this.bots.get(id)!
+    if (bot.flying || this.chores.has(id) || this.overlay.speaking(id)) return false
+    if (this.time.now < (this.nextChore.get(id) ?? 0) || !this.atHome(id)) return false
+    // Nothing queued for it, and nobody on their way to see it.
+    return !this.timeline
+      .items()
+      .some((a) => a.agent === id || (a.kind === 'walk' && 'visit' in a.to && a.to.visit === id))
   }
 
-  private startChore(robot: Robot): void {
-    const options = choresFor(robot.id)
+  private startChore(id: AgentId): void {
+    const options = choresFor(id)
     const chore = options[Math.floor(Math.random() * options.length)]
-    const token = ++this.choreToken
-    const state = { token, timers: [] as Phaser.Time.TimerEvent[], anim: [] as Effect[] }
-    robot.chore = state
-    const later = (ms: number, fn: () => void) =>
-      state.timers.push(this.time.delayedCall(ms, () => robot.chore?.token === token && fn()))
-    later(this.flyTo(robot, chore.at), () => {
-      robot.label.setText(chore.label)
-      this.animate(robot, chore, state.anim)
+    const bot = this.bots.get(id)!
+    const run: ChoreRun = { chore, timers: [] }
+    this.chores.set(id, run)
+    const later = (ms: number, fn: () => void) => run.timers.push(this.time.delayedCall(ms, fn))
+    const there = bot.flyAlong([chore.at], SPEED * 0.55)
+    later(there + 50, () => {
+      bot.setState(chore.anim as BotState)
+      this.overlay.chip(id, chore.label, true)
+      if (chore.prop) {
+        run.prop = this.add.image(bot.x + 16, bot.y - 70, chore.prop).setScale(1 / 2).setDepth(bot.y + 1)
+        this.tweens.add({ targets: run.prop, angle: -35, y: bot.y - 80, duration: 600, yoyo: true, hold: 500, repeat: 1 })
+      }
       later(chore.ms, () => {
-        for (const e of state.anim.splice(0)) e.remove()
-        this.endAnim(robot)
-        robot.label.setText('')
-        later(this.fly(robot, { desk: robot.id }), () => {
-          robot.chore = undefined
-          robot.nextChoreAt = this.time.now + choreDelay()
+        run.prop?.destroy()
+        this.overlay.chip(id, null)
+        const home = bot.flyAlong([spotPoint({ desk: id })], SPEED * 0.55)
+        later(home + 50, () => {
+          this.chores.delete(id)
+          this.nextChore.set(id, this.time.now + choreDelay())
         })
       })
     })
   }
 
-  /** A real event arrived: drop whatever chore is going on, right where the robot is. */
-  private stopChore(robot: Robot): boolean {
-    if (!robot.chore) return false
-    for (const e of [...robot.chore.timers, ...robot.chore.anim]) e.remove()
-    robot.chore = undefined
-    robot.flight?.stop()
-    robot.flying = false
-    this.endAnim(robot)
-    robot.label.setText('')
-    robot.sprite.setTexture(`${robot.id}-open`).setFlipX(false)
-    robot.nextChoreAt = this.time.now + choreDelay()
-    return !this.isAt(robot, { desk: robot.id })
+  /** A real event arrived: drop any chore right where the robot is. True if one was going. */
+  private stopChore(id: AgentId): boolean {
+    const run = this.chores.get(id)
+    if (!run) return false
+    for (const t of run.timers) t.remove()
+    run.prop?.destroy()
+    this.chores.delete(id)
+    const bot = this.bots.get(id)!
+    bot.stopFlight()
+    bot.setState('idle')
+    this.overlay.chip(id, null)
+    this.nextChore.set(id, this.time.now + choreDelay())
+    return true
   }
 
-  private animate(robot: Robot, chore: Chore, extras: Effect[]): void {
-    const s = robot.sprite
-    const baseY = s.y
-    if (chore.anim === 'drink') {
-      // pick up the bottle, tip it back a few times, put it back
-      this.bottle.setData('home', { x: this.bottle.x, y: this.bottle.y })
-      this.bottle.setPosition(s.x - 22, baseY - 14).setDepth(s.depth + 1)
-      extras.push(this.tweens.add({ targets: this.bottle, angle: 70, y: baseY - 30, duration: 450, yoyo: true, hold: 300, repeat: 2 }))
-    } else if (chore.anim === 'run') {
-      let step = 0
-      extras.push(
-        this.time.addEvent({
-          delay: 140,
-          loop: true,
-          callback: () => {
-            step++
-            s.setTexture(`${robot.id}-${step % 2 ? 'run' : 'open'}`)
-            s.y = baseY - (step % 2 ? 2 : 0)
-            for (const b of this.belt) b.x = b.x - 3 < s.x - 34 ? b.x + 57 : b.x - 3
-          },
-        }),
-      )
-    } else if (chore.anim === 'look') {
-      extras.push(this.tweens.add({ targets: s, y: baseY - 3, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }))
-      extras.push(this.time.addEvent({ delay: 1200, loop: true, callback: () => s.setFlipX(!s.flipX) }))
-    } else {
-      extras.push(
-        this.time.addEvent({
-          delay: 140,
-          loop: true,
-          callback: () => s.setTexture(`${robot.id}-${Math.random() > 0.5 ? 'blink' : 'open'}`),
-        }),
-      )
+  // ---- every frame --------------------------------------------------------------------------
+
+  update(time: number, delta: number): void {
+    const cam = this.cameras.main
+    const view = cam.worldView
+    const z = cam.zoom / this.dpr // world units → CSS px
+    const states = {} as Record<AgentId, BoardState>
+    for (const [id, bot] of this.bots) {
+      bot.update(time)
+      const sx = (bot.x - view.x) * z
+      const sy = (bot.y - view.y) * z
+      this.overlay.place(id, { headX: sx, headY: (bot.top - view.y) * z, feetX: sx, feetY: sy }, this.cssWidth())
+      const s = bot.state
+      states[id] = s === 'talk' ? 'talk' : s === 'think' || s === 'work' ? 'busy' : placeAt(bot) !== id ? 'away' : 'idle'
+      holoLines(this.desks[id], s === 'work' && this.atHome(id), time)
     }
-    s.setData('baseY', baseY)
-  }
-
-  private endAnim(robot: Robot): void {
-    const s = robot.sprite
-    if (s.getData('baseY') !== undefined && !robot.flying) s.y = s.getData('baseY')
-    s.setData('baseY', undefined)
-    s.setFlipX(false)
-    if (!robot.flying) s.setTexture(`${robot.id}-open`)
-    const home = this.bottle.getData('home')
-    if (home && robot.id === 'health_coach') {
-      this.tweens.killTweensOf(this.bottle)
-      this.bottle.setPosition(home.x, home.y).setAngle(0).setDepth(0)
-      this.bottle.setData('home', undefined)
+    this.board(states)
+    if (this.view === 'follow') this.camTarget.set(...this.framing())
+    this.belt(this.bots.get('health_coach')!.state === 'run', delta)
+    for (const f of this.tick) f(time)
+    // doors slide open while a robot passes
+    for (const d of this.doors) {
+      const near = [...this.bots.values()].some((b) => Math.abs(b.x - d.x) < 60 && Math.abs(b.y - d.y) < 90)
+      d.open += ((near ? 1 : 0) - d.open) * 0.15
+      d.left.scaleX = d.right.scaleX = Math.max(0.05, 1 - d.open)
     }
-  }
-
-  private stopTyping(robot: Robot): void {
-    robot.typing?.remove()
-    robot.typing = undefined
-    robot.screen.setFillStyle(0x2b3a55)
-    if (!robot.flying) robot.sprite.setTexture(`${robot.id}-open`)
-  }
-
-  private clearBubble(robot: Robot): void {
-    robot.bubble?.destroy()
-    robot.bubble = undefined
-  }
-
-  private say(robot: Robot, text: string, thought: boolean): void {
-    this.clearBubble(robot)
-    const maxWidth = 170
-    const body = this.add.text(0, 0, text, {
-      fontFamily: 'monospace',
-      fontSize: '10px',
-      color: '#1b1b24',
-      wordWrap: { width: maxWidth },
-    })
-    const w = Math.min(maxWidth, body.width) + 12
-    const h = body.height + 10
-    const g = this.add.graphics()
-    g.fillStyle(thought ? 0xe9ecef : 0xffffff).fillRoundedRect(-w / 2, -h, w, h, 6)
-    g.fillTriangle(-5, 0, 5, 0, 0, 7)
-    body.setPosition(-w / 2 + 6, -h + 5)
-    // Keep the bubble on screen even for robots near the edges.
-    const x = Phaser.Math.Clamp(robot.sprite.x, w / 2 + 4, WIDTH - w / 2 - 4)
-    const y = Math.max(h + 4, robot.sprite.y - 52)
-    robot.bubble = this.add.container(x, y, [g, body]).setDepth(1000)
   }
 }
 
-export function createOffice(parent: HTMLElement): { game: Phaser.Game; scene: () => OfficeScene | null } {
+/** One Phaser game in `parent`, sized to it and sharp on high-density screens. */
+export function createOffice(parent: HTMLElement): {
+  game: Phaser.Game
+  scene: () => OfficeScene | null
+  destroy: () => void
+} {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5)
+  const size = () => ({ w: Math.max(1, parent.clientWidth), h: Math.max(1, parent.clientHeight) })
+  const { w, h } = size()
+  const scene = new OfficeScene(dpr)
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
-    width: WIDTH,
-    height: HEIGHT,
-    pixelArt: true,
-    backgroundColor: '#1b1b24',
-    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_HORIZONTALLY },
-    scene: [OfficeScene],
+    width: Math.round(w * dpr),
+    height: Math.round(h * dpr),
+    backgroundColor: '#070a14',
+    antialias: true,
+    scale: { mode: Phaser.Scale.NONE, zoom: 1 / dpr },
+    scene: [scene],
   })
+  const observer = new ResizeObserver(() => {
+    const s = size()
+    game.scale.resize(Math.round(s.w * dpr), Math.round(s.h * dpr))
+    game.scale.setZoom(1 / dpr)
+  })
+  observer.observe(parent)
+  if (new URLSearchParams(window.location.search).has('debug')) Object.assign(window, { office: game })
   return {
     game,
-    scene: () => (game.scene.isActive('office') ? (game.scene.getScene('office') as OfficeScene) : null),
+    scene: () => (game.scene.isActive('office') ? scene : null),
+    destroy: () => {
+      observer.disconnect()
+      game.destroy(true)
+    },
   }
 }
