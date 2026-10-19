@@ -79,7 +79,7 @@ Only a coin that passes both gets an alert, at most once per coin and three a da
 
 | Item | Per month | Notes |
 | --- | --- | --- |
-| Railway (backend + Postgres) | ~$5 | Hobby plan |
+| Railway (backend + Postgres) | $0 | Free trial; it has run everything so far |
 | Claude API | ~$3–8 | Haiku 5.5 routes ($0.10 / $0.50 per million input/output tokens); Sonnet 5.5 coaches and scouts ($2 / $10). A question costs roughly 2–5¢, mostly the Sonnet tool calls; the market scan itself uses no model at all |
 | Vercel (office page) | $0 | Free tier |
 | Telegram, Strava, iOS Shortcuts, GeckoTerminal, GoPlus, RugCheck | $0 | Free APIs |
