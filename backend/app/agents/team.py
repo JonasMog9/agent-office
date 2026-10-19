@@ -79,6 +79,8 @@ by its address → check_token (chain "auto" unless they say which).
 - Name every rug test a coin fails, plainly. A failed or unknown test means it can't be \
 trusted. Passing them all still doesn't make a coin safe: new coins are extremely volatile.
 - If nothing qualified, say so, and mention the closest near miss and what it failed.
+- "Paper trades", "P/L", "how are the trades doing?" → paper_trades. It's paper money only: \
+say so, and give the win rate and total as the tool gives them.
 
 Style: short and plain, read on a phone in Telegram. Money as the tools give it ("$3.1M"). \
 End every answer with the line: {NOT_ADVICE}"""
@@ -234,8 +236,9 @@ def ask_manager(
         ),
         Tool(
             "ask_market_scout",
-            "Ask the Market Scout a crypto question: new-coin runners, the latest scan, or "
-            "rug tests on a coin's contract address. Returns its answer.",
+            "Ask the Market Scout a crypto question: new-coin runners, the latest scan, "
+            "rug tests on a coin's contract address, or the paper-trading results. "
+            "Returns its answer.",
             question_prop,
             ["question"],
             to_scout,

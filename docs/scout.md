@@ -9,8 +9,8 @@ Every message ends with "Not financial advice."
 
 ## How a coin gets through
 
-Every 10 minutes the scanner pulls the trending and top-volume pools on Solana, Base and
-Ethereum from GeckoTerminal (CoinGecko's DEX data). Coins at most 48 hours old go through two
+Every 10 minutes the scanner pulls the trending and top-volume pools on Solana (Base and
+Ethereum can be switched on) from GeckoTerminal (CoinGecko's DEX data). Coins at most 48 hours old go through two
 gates, and **both** must pass.
 
 **1. The market screen** (`backend/app/scout/screen.py`):
@@ -37,21 +37,39 @@ get its data, it fails.** Passing every test still doesn't make a coin safe.
 
 Each coin alerts at most once, and at most 3 alerts go out in 24 hours.
 
+## Paper trading
+
+The Scout never trades real money. Every alert opens a **pretend $10 trade** at the price when
+the alert went out, so you can see whether the alerts would have made money. Each scan
+re-prices open trades and sells at the first rule that fires:
+
+| Rule | Sells when |
+| --- | --- |
+| Take profit | price ≥ 2× the entry |
+| Stop loss | price ≤ half the entry |
+| Rug | the pool's liquidity drops below $1,000 |
+| Time | 3 days after the entry |
+
+It sells at the price it actually sees (a coin can jump past 2× between checks), and charges
+2% fees and slippage on the way in and out. When a trade closes you get a short Telegram
+message with its result and the running total. The rules are in `backend/app/scout/paper.py`.
+
 ## Asking it things
 
 Message the bot:
 
 - "Anything up?" or "Any runners?" gives the latest scan, its closest near misses and what
   they failed, plus any alerts from the last week.
-- "Check 0x…" or "check <Solana address>" runs the screen and every rug test on that coin
-  now.
+- "Check <Solana address>" runs the screen and every rug test on that coin now.
+- "How are my paper trades?" gives the win rate, total P/L, best and worst calls, and open
+  trades.
 
 ## Settings (Railway → backend → Variables)
 
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `SCOUT_ENABLED` | `true` | `false` stops the scans |
-| `SCOUT_CHAINS` | `solana,base,eth` | which chains to scan |
+| `SCOUT_CHAINS` | `solana` | which chains to scan (`base` and `eth` work too) |
 | `SCOUT_SCAN_MINUTES` | `10` | how often |
 | `SCOUT_MIN_VOLUME_USD` | `1000000` | the volume bar ("crazy volume") |
 | `SCOUT_MAX_ALERTS_PER_DAY` | `3` | safety cap on messages |

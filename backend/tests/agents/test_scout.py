@@ -127,7 +127,7 @@ def test_manager_routes_crypto_questions_to_the_scout():
     assert scout_answer.endswith(NOT_ADVICE)
     assert result.text.endswith(NOT_ADVICE)
     scout_req = next(r for r in claude.requests if r["model"] == SCOUT_MODEL)
-    assert {t["name"] for t in scout_req["tools"]} == {"latest_scan", "check_token"}
+    assert {t["name"] for t in scout_req["tools"]} == {"latest_scan", "check_token", "paper_trades"}
     assert scout_req["beta"] and scout_req["fallbacks"] == "default"
     assert ("manager", "walking", "market_scout") in [
         (e.agent, e.status, e.target) for e in bus.recent("m")

@@ -262,3 +262,25 @@ class ScoutAlert(Base):
     message: Mapped[str] = mapped_column(Text, default="")
 
     __table_args__ = (UniqueConstraint("chain", "token_address", name="uq_scout_alerts_token"),)
+
+
+class PaperTrade(Base):
+    """A pretend trade on one alert: no real money. See app/scout/paper.py for the rules."""
+
+    __tablename__ = "paper_trades"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    alert_id: Mapped[int] = mapped_column(Integer, unique=True)
+    chain: Mapped[str] = mapped_column(String(16))
+    pool_address: Mapped[str] = mapped_column(String(64))
+    symbol: Mapped[str] = mapped_column(String(32))
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    stake_usd: Mapped[float] = mapped_column(Float)
+    entry_price: Mapped[float] = mapped_column(Float)
+    last_price: Mapped[float | None] = mapped_column(Float)
+    peak_price: Mapped[float | None] = mapped_column(Float)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    exit_price: Mapped[float | None] = mapped_column(Float)
+    exit_reason: Mapped[str | None] = mapped_column(String(32))
+    pnl_usd: Mapped[float | None] = mapped_column(Float)
