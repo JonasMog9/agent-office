@@ -210,3 +210,55 @@ class AppState(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class ScoutScan(Base):
+    """One Market Scout scan: how much it looked at and what came close, for "anything up?"."""
+
+    __tablename__ = "scout_scans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ran_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    pools_seen: Mapped[int] = mapped_column(Integer)
+    young: Mapped[int] = mapped_column(Integer)  # pools at most 48 h old
+    screened: Mapped[int] = mapped_column(Integer)  # passed the market screen
+    alerts: Mapped[int] = mapped_column(Integer)
+    near_misses: Mapped[list] = mapped_column(JSON)  # best young pools and the rules they failed
+    errors: Mapped[list] = mapped_column(JSON)
+
+
+class ScoutCheck(Base):
+    """A rug test run on one token (cached so a scan doesn't re-ask the API every 10 minutes)."""
+
+    __tablename__ = "scout_checks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chain: Mapped[str] = mapped_column(String(16))
+    token_address: Mapped[str] = mapped_column(String(64))
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    passed: Mapped[bool] = mapped_column(Boolean)
+    details: Mapped[dict] = mapped_column(JSON)  # the rug ScoreResult
+
+    __table_args__ = (UniqueConstraint("chain", "token_address", name="uq_scout_checks_token"),)
+
+
+class ScoutAlert(Base):
+    """A potential runner the owner was told about. One per token, ever."""
+
+    __tablename__ = "scout_alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chain: Mapped[str] = mapped_column(String(16))
+    token_address: Mapped[str] = mapped_column(String(64))
+    pool_address: Mapped[str] = mapped_column(String(64))
+    symbol: Mapped[str] = mapped_column(String(32))
+    alerted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    # Market numbers when alerted, so later we can check how the call played out.
+    price_usd: Mapped[float | None] = mapped_column(Float)
+    fdv_usd: Mapped[float | None] = mapped_column(Float)
+    liquidity_usd: Mapped[float | None] = mapped_column(Float)
+    volume_h24_usd: Mapped[float | None] = mapped_column(Float)
+    details: Mapped[dict] = mapped_column(JSON)  # screen + rug breakdowns
+    message: Mapped[str] = mapped_column(Text, default="")
+
+    __table_args__ = (UniqueConstraint("chain", "token_address", name="uq_scout_alerts_token"),)

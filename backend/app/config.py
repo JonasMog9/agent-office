@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     office_view_key: str = ""
     morning_push_earliest_hour: int = 6
     morning_push_fallback_hour: int = 10
+    # Market Scout: scans for new coins (≤ 48 h old) doing huge volume that pass rug tests,
+    # and alerts on Telegram only then. Read-only: no wallet, no trading.
+    scout_enabled: bool = True
+    scout_chains: str = "solana,base,eth"
+    scout_scan_minutes: int = 10
+    scout_min_volume_usd: float = 1_000_000
+    scout_max_alerts_per_day: int = 3
     # Base URL for OAuth/webhook callbacks. Railway sets RAILWAY_PUBLIC_DOMAIN automatically.
     public_base_url: str = ""
     railway_public_domain: str = ""

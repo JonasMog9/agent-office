@@ -1,7 +1,5 @@
-"""FastAPI app.
-
-Routes for /telegram and /ws/events land in later phases.
-"""
+"""FastAPI app: the HTTP routes, plus the background jobs started with it (Strava backfill,
+score rebuild, Telegram webhook, morning summary, Market Scout scans)."""
 
 import logging
 import threading
@@ -26,6 +24,8 @@ from app.ingest.service import reassign_night_samples
 from app.ingest.strava_routes import resume_unfinished_backfill
 from app.ingest.strava_routes import router as strava_router
 from app.metrics.daily import recompute_all
+from app.scout import job as scout_job
+from app.scout import scan as scout_scan
 from app.telegram import morning
 from app.telegram.routes import register_webhook, send_morning_if_due
 from app.telegram.routes import router as telegram_router
@@ -50,8 +50,16 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     threading.Thread(target=_startup_rebuild, daemon=True).start()
     threading.Thread(target=register_webhook, daemon=True).start()
     stop_morning = morning.start_fallback_thread(send_morning_if_due)
+    settings = get_settings()
+    stop_scout = (
+        scout_scan.start_thread(scout_job.scan_now, settings.scout_scan_minutes * 60)
+        if settings.scout_enabled
+        else None
+    )
     yield
     stop_morning.set()
+    if stop_scout:
+        stop_scout.set()
 
 
 app = FastAPI(title="Agent Office", lifespan=lifespan)

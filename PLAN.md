@@ -198,10 +198,15 @@ Done when a Telegram message visibly plays out on the office page. ✅ Done 2026
 
 ### Phase 6: Market Scout
 
-- [ ] Run a daily job that pulls trending tokens from DexScreener and CoinGecko, snapshots them to Postgres, and computes risk and momentum features.
-- [ ] The Scout agent turns the top flags into a 5-line brief. The Manager posts it to Telegram and the office shows the Scout at the chart wall.
+The owner changed the goal (2026-10-19): no daily brief. Alert **only** when a new coin (at most two days old) passes rug tests and is doing huge volume, a potential runner. Most days nothing qualifies, and that's the point.
 
-Done when a week of daily briefs has landed.
+- [x] Scan every 10 minutes: GeckoTerminal (CoinGecko's DEX data) trending and top-volume pools on Solana, Base and Ethereum. Screen coins ≤ 48 h old for huge, real volume (`scout/screen.py`: volume, liquidity, distinct buyers, turnover, trade size, still trading, not dumping, buyers vs sellers, still early). Each scan is recorded with its closest near misses.
+- [x] Rug tests on coins that pass the screen (`scout/rug.py`): GoPlus for EVM chains (honeypot, taxes, mint, owner powers, LP lock, holder concentration, creator share), RugCheck for Solana (mint and freeze authority, LP lock, holders, transfer fee, danger flags). A test without data fails.
+- [x] Alert only when both pass: the Scout words it, the Manager posts it to Telegram with the chart link, contract and "Not financial advice". Once per coin, at most 3 a day. The office shows the Scout spotting it and the Manager carrying it out.
+- [x] On demand from Telegram: "anything up?" (latest scan, near misses, recent alerts) and "check <contract address>" (screen and rug tests on any coin).
+- [ ] Check the API parsers against live GeckoTerminal, GoPlus and RugCheck responses (written from their docs; the dev container couldn't reach them yet).
+
+Done when the scanner has run for a week on Railway (a scan row every 10 minutes), every alert sent passed every test, and "check <address>" answers from Telegram.
 
 ### Phase 7: Polish and ship
 
@@ -215,6 +220,7 @@ Problems hit while building this, how they were found, and what fixed them, newe
 
 | Date | Problem | How it showed up / was found | Fix | Lesson |
 | --- | --- | --- | --- | --- |
+| 2026-10-19 | The Market Scout's plan (a daily 5-line brief on trending tokens) wasn't what the owner wanted | Starting Phase 6, the owner said they only want to hear about a new coin that passes rug tests and does crazy volume in its first day or two, "not a coin every day" | Rebuilt the phase as an event-driven scanner: a 10-minute scan, a strict market screen, rug tests where missing data fails, and alerts only when both pass (once per coin, capped per day). On-demand "anything up?" and "check <address>" replace the brief | Ask what an alert is for before building a feed: the cost of a notification is the owner's attention |
 | 2026-10-17 | A backend test started failing four days after it was written, on a frontend-only PR | CI on the office PR: the test expected "Today is 2026-10-13" in the coach's prompt, but the prompt said 2026-10-17 | The test pinned `coach_tools.today`, but `team.py` had imported `today` by name, so the pin never reached the prompt and the test only passed on the day it was written. `team.py` now calls `coach_tools.today()` through the module | `from x import f` copies the name; patch where it's looked up. A test that passes only on one date is a time bomb |
 | 2026-10-13 | Two different "% of sleep need" for the same night, and talk of wrist temperature the watch can't measure | First Telegram messages: the morning summary said 71% of sleep need, the answer a minute later 78%; the coach mentioned wrist temperature "wasn't recorded" | Recovery's sleep input used the base 8 h need, sleep performance the full need (with debt repayment); both now use the full need. The "not recorded" note that prompted the wrist-temperature remark is gone, and the coach is told the watch can't measure it. Durations now reach the coach as "6 h 12 min" | Two code paths computing "the same" number will drift; compute it once. Every note a tool returns is something the model may repeat |
 | 2026-10-13 | First live agent question: a bare `Internal Server Error` | The owner asked on `/agents/ask` and got only that; nothing to go on from a phone | The page now catches a failed run and shows the error plus the partial event log. That revealed `401 invalid x-api-key`: the key in Railway wasn't valid. A new key (Default workspace) fixed it | Every entry point should report its real error to the (authenticated) owner; a bare 500 cost a round trip twice now (also `/ingest/health` in Phase 2) |
