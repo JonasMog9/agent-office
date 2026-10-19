@@ -4,7 +4,7 @@ Source of truth for what we're building and in what order. Tick boxes as phases 
 
 ## Goal
 
-Build a cloud-hosted team of three AI agents you control from Telegram, shown live as pixel characters in a 2D office. Then record a 60–90 second demo video and run it for about a month.
+Build a cloud-hosted team of three AI agents you control from Telegram, shown live as animated robots in a 2D office. Then record a 60–90 second demo video and run it for about a month.
 
 The finished demo: you text "How ready am I to train today?". The Manager character stands up, walks to the Health Coach's desk with a speech bubble, the coach types, and your phone buzzes with a readiness score and today's workout call. The Market Scout posts its daily brief in the same office.
 
@@ -211,8 +211,8 @@ Done when the scanner has run for a week on Railway (a scan row every 10 minutes
 
 ### Phase 7: Polish and ship
 
-- [ ] Write a README with a GIF, an architecture diagram, how the readiness score works, and costs.
-- [ ] Add a simple stats page: a 30-day readiness chart, plus the Scout's flags vs. what happened.
+- [x] Write a README with a GIF, an architecture diagram, how the readiness score works, and costs. The GIF is recorded from the public demo (`docs/media/office.gif`), the diagram is Mermaid, and costs use current Claude pricing (Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10 per million tokens).
+- [x] Add a simple stats page: a 30-day readiness chart, plus the Scout's flags vs. what happened. `/stats` on the office site: recovery bars by zone (with a table view), fitness vs. fatigue lines, and every Scout alert with its paper-trade outcome. The backend's `GET /stats` needs the office key; without it the page shows made-up demo numbers.
 - [ ] Record the demo video (script below), and post it on LinkedIn with the repo link.
 
 ## Challenges log
@@ -244,15 +244,15 @@ Problems hit while building this, how they were found, and what fixed them, newe
 
 ## Demo video script (about 75 seconds)
 
-Record a split screen: your phone (screen recording) on the left and the office in the browser on the right.
+Record a split screen: your phone (screen recording) on the left and the office in the browser on the right, in **Follow** view (or Overview for the wide shots).
 
-1. **0–5s, hook.** The office is idle. Caption: "My AI team runs in the cloud. I manage it from Telegram."
-2. **5–25s, the ask.** You text "How ready am I to train today?". The Manager stands up and walks to the Health Coach with a speech bubble.
-3. **25–40s, the work.** The Coach types. The bubble shows "HRV 12% below baseline, 6h10m sleep". Your phone buzzes: "Recovery 58% (yellow). Swapping today's intervals for an easy 40 min in Zone 2. Marathon estimate: 3:28–3:36."
-4. **40–55s, the second agent.** Cut to the morning: the Scout walks to the chart wall and the daily meme coin brief lands in Telegram.
-5. **55–75s, under the hood.** Show the architecture diagram, the 30-day readiness chart, and the GitHub repo. Caption the stack: "FastAPI · Postgres · Claude API · Telegram · Phaser · Railway".
+1. **0–5s, hook.** The office is quiet; the robots are doing chores (the Coach on the treadmill, the Scout in the bat-signal). Caption: "My AI team runs in the cloud. I manage it from Telegram."
+2. **5–25s, the ask.** You text "How ready am I to train today?". The Manager thinks, flies out of the Command Room and down the long hallway to the Health Lab.
+3. **25–40s, the work.** The Coach thinks and runs its tools (the chips show "Checking recovery", "Checking sleep"), then answers in a bubble. The Manager carries the answer to the uplink, which beams it out, and your phone buzzes with the recovery score and today's workout.
+4. **40–55s, the second agent.** A Scout alert: the Scout spots a potential runner, the Manager picks it up and your phone gets "🚀 Potential runner…" with the rug tests it passed. Then ask "how are my paper trades?".
+5. **55–75s, under the hood.** Show the stats page (30-day recovery, the Scout's alerts vs. what happened), the architecture diagram in the README, and the repo. Caption the stack: "FastAPI · Postgres · Claude API · Telegram · Phaser · Railway".
 
-Tips: record with real data, keep captions on screen (most people watch muted), and end on the repo URL.
+Tips: record with real data, keep captions on screen (most people watch muted), and end on the repo URL. A real Scout alert is rare by design; for the take, use one that arrived during the month (its Telegram message), or record the office demo's alert scenario and say it's the demo.
 
 ## Costs, timeline and resume framing
 

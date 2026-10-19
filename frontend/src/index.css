@@ -321,3 +321,145 @@ h1 {
   .where { display: none; }
   .stagebar { justify-content: flex-end; }
 }
+
+/* ---- stats page ---- */
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+a.pill.link {
+  color: var(--text);
+  text-decoration: none;
+}
+a.pill.link:hover {
+  border-color: rgba(130, 160, 255, 0.4);
+}
+
+.stats .tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.tile .k {
+  font-size: 0.76rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.tile .v {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.7rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.tile .s {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.up { color: #5fd35f; }
+.down { color: #ff8a8a; }
+.zone-chip {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #0b0f1d;
+}
+.zone-chip.green { background: #0ca30c; color: #fff; }
+.zone-chip.yellow { background: #fab219; }
+.zone-chip.red { background: #d03b3b; color: #fff; }
+
+.card {
+  padding: 16px 18px 12px;
+  border-radius: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.card h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.muted {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.key {
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 6px 0 4px;
+  font-family: inherit;
+  touch-action: pan-y;
+}
+.chart .grid { stroke: rgba(150, 170, 230, 0.12); }
+.chart .axis { stroke: rgba(150, 170, 230, 0.35); }
+.chart .tick { fill: #8f9bbd; font-size: 11px; }
+.chart .zone { fill: #8f9bbd; font-size: 11px; font-weight: 600; }
+.chart .nodata { fill: #59627f; }
+.chart .end-label { fill: var(--text); font-size: 12px; font-weight: 600; }
+.chart .ringed { stroke: #111831; stroke-width: 2; }
+.chart .crosshair { stroke: rgba(200, 210, 255, 0.4); stroke-width: 1; }
+.chart .tip rect { fill: #0b1022; stroke: rgba(130, 160, 255, 0.35); }
+.chart .tip text { fill: #c9d2ee; font-size: 11.5px; }
+.chart .tip .tip-title { fill: #fff; font-weight: 700; }
+
+.card details {
+  margin: 4px 0 6px;
+  font-size: 0.82rem;
+}
+.card summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin-top: 8px;
+}
+.card th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.card td {
+  padding: 7px 8px;
+  border-bottom: 1px solid rgba(130, 160, 255, 0.07);
+  white-space: nowrap;
+}
+.scroll {
+  overflow-x: auto;
+}
+
+@media (max-width: 700px) {
+  .stats .tiles { grid-template-columns: 1fr 1fr; }
+  .stats .top { flex-wrap: wrap; }
+  .stats .actions { width: 100%; justify-content: flex-end; }
+  .tile .v { font-size: 1.35rem; }
+}
