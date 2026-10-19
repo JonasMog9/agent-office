@@ -202,20 +202,6 @@ def test_refusal_and_runaway_loops_end_cleanly() -> None:
     assert "ran out of steps" in r.text and len(loop.requests) == MAX_TURNS
 
 
-def test_market_scout_is_not_built_yet() -> None:
-    claude = FakeClaude(
-        {
-            MANAGER_MODEL: [
-                reply(("tool", "ask_market_scout", {"question": "BTC?"})),
-                reply(("text", "Not yet.")),
-            ]
-        }
-    )
-    bus = EventBus()
-    ask_manager(claude, SessionLocal, "BTC?", bus, run_id="s")
-    assert ("market_scout", "talking") in [(e.agent, e.status) for e in bus.recent("s")]
-
-
 def test_event_bus_validates_and_survives_bad_subscribers() -> None:
     bus = EventBus()
     seen = []

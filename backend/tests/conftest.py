@@ -7,6 +7,7 @@ import pytest
 # Point the app at a throwaway SQLite file before any app module creates its engine.
 _db_dir = tempfile.mkdtemp(prefix="agent-office-tests-")
 os.environ["DATABASE_URL"] = f"sqlite:///{_db_dir}/test.db"
+os.environ["SCOUT_ENABLED"] = "false"  # no background market scans (or network) in tests
 
 from app.config import get_settings  # noqa: E402
 from app.db import models  # noqa: E402, F401
