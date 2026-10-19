@@ -26,6 +26,7 @@ from app.ingest.strava_routes import router as strava_router
 from app.metrics.daily import recompute_all
 from app.scout import job as scout_job
 from app.scout import scan as scout_scan
+from app.stats import router as stats_router
 from app.telegram import morning
 from app.telegram.routes import register_webhook, send_morning_if_due
 from app.telegram.routes import router as telegram_router
@@ -67,6 +68,8 @@ app = FastAPI(title="Agent Office", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in get_settings().cors_origins.split(",") if o.strip()],
+    # the office on Vercel, and its preview deploys
+    allow_origin_regex=r"https://agent-office[a-z0-9-]*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -76,6 +79,7 @@ app.include_router(apple_router)
 app.include_router(agents_router)
 app.include_router(telegram_router)
 app.include_router(ws_router)
+app.include_router(stats_router)
 
 
 @app.get("/health")

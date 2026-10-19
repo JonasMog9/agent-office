@@ -138,10 +138,15 @@ function App() {
             <p className="tagline">Three AI agents at work, live from Telegram</p>
           </div>
         </div>
-        <span className={`pill ${mode}`}>
-          <b />
-          {STATUS_TEXT[mode]}
-        </span>
+        <div className="actions">
+          <a className="pill link" href="/stats">
+            Stats →
+          </a>
+          <span className={`pill ${mode}`}>
+            <b />
+            {STATUS_TEXT[mode]}
+          </span>
+        </div>
       </header>
 
       <section className="stage">
