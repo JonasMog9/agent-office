@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # Market Scout: scans for new coins (≤ 48 h old) doing huge volume that pass rug tests,
     # and alerts on Telegram only then. Read-only: no wallet, no trading.
     scout_enabled: bool = True
-    scout_chains: str = "solana,base,eth"
+    scout_chains: str = "solana"  # base and eth work too: "solana,base,eth"
     scout_scan_minutes: int = 10
     scout_min_volume_usd: float = 1_000_000
     scout_max_alerts_per_day: int = 3

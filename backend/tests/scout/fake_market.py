@@ -26,6 +26,10 @@ class FakeMarket:
         self.rug_pass = rug_pass or {}
         self.rug_calls: list[str] = []
         self.down: set[str] = set()
+        self.prices: dict[str, Pool] = {}  # pool address → current numbers
+
+    def pool_prices(self, chain: str, pool_addresses: list[str]) -> dict[str, Pool]:
+        return {a: self.prices[a] for a in pool_addresses if a in self.prices}
 
     def scan_pools(self, chain: str) -> list[Pool]:
         if chain in self.down:

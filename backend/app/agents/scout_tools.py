@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.agents.loop import Tool
 from app.db.models import ScoutAlert, ScoutScan
 from app.metrics.common import ScoreResult
+from app.scout import paper_book
 from app.scout.scan import result_from_dict
 from app.scout.screen import Pool, Rules, age_hours, screen
 from app.scout.sources import NETWORKS, MarketData, main_pools
@@ -151,7 +152,20 @@ def scout_tools(
             if close:
                 close()
 
+    def paper_tool(args: dict) -> dict:
+        with session_factory() as session:
+            return paper_book.book(session)
+
     return [
+        Tool(
+            "paper_trades",
+            "The paper-trading book: a pretend $10 trade on every alert, sold by fixed rules. "
+            "Win rate, total profit/loss, best and worst, open trades, recent closes.",
+            {},
+            [],
+            paper_tool,
+            "Checking paper trades",
+        ),
         Tool(
             "latest_scan",
             "The latest market scan: how many coins it looked at, how many are under 48 h "

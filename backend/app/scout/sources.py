@@ -127,6 +127,15 @@ class MarketData:
             p for p in pools_from_gecko(data, chain) if p.token_address.lower() == address.lower()
         ]
 
+    def pool_prices(self, chain: str, pool_addresses: list[str]) -> dict[str, Pool]:
+        """Current numbers for up to 30 pools, keyed by pool address."""
+        if not pool_addresses:
+            return {}
+        net = NETWORKS[chain]
+        joined = ",".join(pool_addresses[:30])
+        data = self._get(f"{GECKO}/networks/{net}/pools/multi/{joined}", include="base_token")
+        return {p.pool_address: p for p in pools_from_gecko(data, chain)}
+
     def goplus(self, chain: str, address: str) -> dict | None:
         data = self._get(
             f"{GOPLUS}/token_security/{GOPLUS_CHAIN[chain]}", contract_addresses=address

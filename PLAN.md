@@ -204,7 +204,8 @@ The owner changed the goal (2026-10-19): no daily brief. Alert **only** when a n
 - [x] Rug tests on coins that pass the screen (`scout/rug.py`): GoPlus for EVM chains (honeypot, taxes, mint, owner powers, LP lock, holder concentration, creator share), RugCheck for Solana (mint and freeze authority, LP lock, holders, transfer fee, danger flags). A test without data fails.
 - [x] Alert only when both pass: the Scout words it, the Manager posts it to Telegram with the chart link, contract and "Not financial advice". Once per coin, at most 3 a day. The office shows the Scout spotting it and the Manager carrying it out.
 - [x] On demand from Telegram: "anything up?" (latest scan, near misses, recent alerts) and "check <contract address>" (screen and rug tests on any coin).
-- [ ] Check the API parsers against live GeckoTerminal, GoPlus and RugCheck responses (written from their docs; the dev container couldn't reach them yet).
+- [x] Check the API parsers against live data. Solana is verified on Railway: the first alert (a 19 h old coin, $6.1M volume, every rug test passed) arrived on its own, and "check <address>" returned real RugCheck results matching rugcheck.xyz. The owner only wants Solana, so `SCOUT_CHAINS` defaults to `solana`; the GoPlus (Base/Ethereum) path stays tested on hand-made data only.
+- [x] Paper trading instead of real trades (the owner asked about giving the Scout a wallet; it stays read-only, see CLAUDE.md). Every alert opens a pretend $10 trade at the alert price. Each scan sells it at 2×, −50%, vanished liquidity or after 3 days, with 2% fees and slippage each way (`scout/paper.py`). Closes are posted to Telegram, and "how are my paper trades?" gives the win rate and P/L.
 
 Done when the scanner has run for a week on Railway (a scan row every 10 minutes), every alert sent passed every test, and "check <address>" answers from Telegram.
 
