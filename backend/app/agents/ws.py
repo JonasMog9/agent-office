@@ -27,6 +27,10 @@ QUEUE_MAX = 500
 async def ws_events(websocket: WebSocket, key: str = "") -> None:
     expected = get_settings().office_view_key
     if not expected or not hmac.compare_digest(key.encode(), expected.encode()):
+        # Accept, then close: a socket closed before it's accepted reaches the browser as a
+        # failed handshake (code 1006) behind Railway's proxy, so the page would retry forever
+        # instead of seeing 4401 and showing the demo.
+        await websocket.accept()
         await websocket.close(code=4401)
         return
     await websocket.accept()

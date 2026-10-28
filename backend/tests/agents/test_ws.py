@@ -33,11 +33,11 @@ def test_streams_recent_then_live_events() -> None:
 @pytest.mark.usefixtures("view_key")
 def test_wrong_or_missing_key_is_refused() -> None:
     for url in ("/ws/events", "/ws/events?key=nope"):
-        with (
-            pytest.raises(WebSocketDisconnect) as err,
-            TestClient(app).websocket_connect(url) as ws,
-        ):
-            ws.receive_json()
+        # The handshake succeeds, so the browser sees the 4401 close code itself (a refusal
+        # during the handshake arrives as a generic failure, and the page would just retry).
+        with TestClient(app).websocket_connect(url) as ws:
+            with pytest.raises(WebSocketDisconnect) as err:
+                ws.receive_json()
         assert err.value.code == 4401
 
 
