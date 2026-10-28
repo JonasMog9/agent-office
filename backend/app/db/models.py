@@ -265,12 +265,14 @@ class ScoutAlert(Base):
 
 
 class PaperTrade(Base):
-    """A pretend trade on one alert: no real money. See app/scout/paper.py for the rules."""
+    """A pretend trade on one alert, one per strategy: no real money. See app/scout/paper.py."""
 
     __tablename__ = "paper_trades"
+    __table_args__ = (UniqueConstraint("alert_id", "strategy", name="uq_paper_trades_strategy"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    alert_id: Mapped[int] = mapped_column(Integer, unique=True)
+    alert_id: Mapped[int] = mapped_column(Integer)
+    strategy: Mapped[str] = mapped_column(String(16), default="quick", server_default="quick")
     chain: Mapped[str] = mapped_column(String(16))
     pool_address: Mapped[str] = mapped_column(String(64))
     symbol: Mapped[str] = mapped_column(String(32))
@@ -284,3 +286,6 @@ class PaperTrade(Base):
     exit_price: Mapped[float | None] = mapped_column(Float)
     exit_reason: Mapped[str | None] = mapped_column(String(32))
     pnl_usd: Mapped[float | None] = mapped_column(Float)
+    held: Mapped[float] = mapped_column(Float, default=1.0, server_default="1")  # share held
+    proceeds_usd: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
+    rungs: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # ladder sales

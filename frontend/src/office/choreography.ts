@@ -1,7 +1,7 @@
 // Turns agent events (the backend's {agent, status, target, text}) into what a character does.
 // Pure functions, so the rules are testable without a canvas.
 
-export type AgentId = 'manager' | 'health_coach' | 'market_scout'
+export type AgentId = 'manager' | 'health_coach' | 'market_scout' | 'paper_trader'
 export type Status = 'idle' | 'thinking' | 'walking' | 'working' | 'talking'
 
 export interface OfficeEvent {
@@ -14,11 +14,12 @@ export interface OfficeEvent {
   run_id?: string | null
 }
 
-export const AGENTS: AgentId[] = ['health_coach', 'manager', 'market_scout']
+export const AGENTS: AgentId[] = ['health_coach', 'manager', 'market_scout', 'paper_trader']
 export const NAMES: Record<AgentId, string> = {
   manager: 'Manager',
   health_coach: 'Health Coach',
   market_scout: 'Market Scout',
+  paper_trader: 'Paper Trader',
 }
 
 // Where a character goes: its own desk, another agent's desk, or the door (out to the owner).
@@ -31,8 +32,7 @@ export type Action =
   | { kind: 'talk'; agent: AgentId; text: string; to: string | null }
   | { kind: 'idle'; agent: AgentId }
 
-const isAgent = (x: string | null): x is AgentId =>
-  x === 'manager' || x === 'health_coach' || x === 'market_scout'
+const isAgent = (x: string | null): x is AgentId => AGENTS.includes(x as AgentId)
 
 export function toAction(e: OfficeEvent): Action {
   switch (e.status) {

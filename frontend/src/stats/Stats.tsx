@@ -1,24 +1,53 @@
 import { useEffect, useState } from 'react'
 import { viewKey } from '../office/live'
-import { LoadLines, RecoveryBars } from './charts'
-import { SERIES, chartWidth, demoStats, fetchStats, type Alert, type Stats as Data } from './data'
+import { LoadLines, PnlLines, RecoveryBars } from './charts'
+import {
+  SERIES,
+  STRATEGY_COLOR,
+  chartWidth,
+  demoStats,
+  fetchStats,
+  type PaperResult,
+  type Stats as Data,
+} from './data'
 
 const usd = (x: number | null) =>
   x === null ? '–' : x >= 1e6 ? `$${(x / 1e6).toFixed(1)}M` : x >= 1e3 ? `$${Math.round(x / 1e3)}k` : `$${x.toFixed(0)}`
 const money = (x: number | null) => (x === null ? '–' : `${x >= 0 ? '+' : '−'}$${Math.abs(x).toFixed(2)}`)
 const ZONE = { green: 'Green', yellow: 'Yellow', red: 'Red' } as const
 const REASON: Record<string, string> = {
-  take_profit: 'sold at 2×',
+  take_profit: 'hit its target',
+  trailing_stop: 'trailing stop',
   stop_loss: 'stopped out',
   liquidity_gone: 'liquidity vanished',
-  time: '3 days up',
+  time: 'time up',
   no_price: 'no price',
 }
 
-function outcome(a: Alert): string {
-  if (a.status === null) return 'no trade'
-  if (a.status === 'open') return `open · ${a.now_x ?? '–'}×`
-  return `${REASON[a.exit_reason ?? ''] ?? a.exit_reason} · ${money(a.pnl_usd)}`
+const pct = (x: number) => `${x > 0 ? '+' : x < 0 ? '−' : ''}${Math.abs(x)}%`
+
+/** One strategy's result on one alert: P/L and why it sold, or where an open trade stands. */
+function Result({ r, as: Tag = 'td' }: { r: PaperResult | undefined; as?: 'td' | 'div' }) {
+  if (!r) return <Tag className="muted">–</Tag>
+  if (r.status === 'open') {
+    const now = r.pnl_now_usd ?? 0
+    return (
+      <Tag>
+        <span className="muted">open · {r.now_x ?? '–'}×</span>
+        <small className={now >= 0 ? 'up' : 'down'}>
+          {money(now)} if sold now{r.sold_pct ? ` · ${r.sold_pct}% sold` : ''}
+        </small>
+      </Tag>
+    )
+  }
+  return (
+    <Tag className={(r.pnl_usd ?? 0) >= 0 ? 'up' : 'down'}>
+      {money(r.pnl_usd)}
+      <small className="muted">
+        {REASON[r.exit_reason ?? ''] ?? r.exit_reason} · {r.now_x ?? '–'}×
+      </small>
+    </Tag>
+  )
 }
 
 export default function Stats() {
@@ -57,7 +86,11 @@ export default function Stats() {
   const avg = scored.length ? Math.round(scored.reduce((s, d) => s + d.recovery!, 0) / scored.length) : null
   const counts = { green: 0, yellow: 0, red: 0 }
   for (const d of scored) if (d.label) counts[d.label]++
-  const p = data.scout.paper
+  const strategies = data.scout.strategies ?? [] // empty while the backend is an older version
+  const best = [...strategies].sort((a, b) => b.summary.total_pnl_usd - a.summary.total_pnl_usd)[0]
+  const anyClosed = strategies.some((x) => x.summary.closed > 0)
+  const end = Date.parse(data.generated_at)
+  const firstAlert = Math.min(end, ...data.scout.alerts.map((a) => Date.parse(a.alerted_at)))
 
   return (
     <main className="stats">
@@ -108,11 +141,11 @@ export default function Stats() {
           <span className="s">from {data.scout.scans_30d.toLocaleString()} scans in 30 days</span>
         </div>
         <div className="tile">
-          <span className="k">Paper trading</span>
-          <span className={`v ${p.total_pnl_usd >= 0 ? 'up' : 'down'}`}>{money(p.total_pnl_usd)}</span>
-          <span className="s">
-            {p.closed} closed{p.win_rate_pct !== null ? ` · ${p.win_rate_pct}% wins` : ''} · {p.open} open · $10 each
+          <span className="k">Best paper strategy</span>
+          <span className={`v ${anyClosed ? (best.summary.total_pnl_usd >= 0 ? 'up' : 'down') : ''}`}>
+            {anyClosed ? money(best.summary.total_pnl_usd) : '–'}
           </span>
+          <span className="s">{anyClosed ? `${best.name} · of 3 strategies, $10 a trade` : 'no closed trades yet'}</span>
         </div>
       </section>
 
@@ -151,17 +184,98 @@ export default function Stats() {
       </section>
 
       <section className="card">
+        <h2>Paper trading: three ways to sell</h2>
+        <p className="muted">
+          Every alert buys a pretend $10 with each strategy at the alert price; only the selling rules differ. 2% fees and slippage each way.
+          Paper money only. Not financial advice.
+        </p>
+        <div className="strategies">
+          {strategies.map((x, i) => (
+            <article key={x.key} className="strategy">
+              <header>
+                <span className="swatch" style={{ background: STRATEGY_COLOR[x.key] }} />
+                <span className="num">Strategy {i + 1}</span>
+                <h3>{x.name}</h3>
+              </header>
+              <p className="blurb">{x.blurb}</p>
+              <div className={`pnl ${x.summary.closed ? (x.summary.total_pnl_usd >= 0 ? 'up' : 'down') : ''}`}>
+                {x.summary.closed ? money(x.summary.total_pnl_usd) : '$0.00'}
+                {x.summary.return_pct !== null && <em>{pct(x.summary.return_pct)}</em>}
+              </div>
+              <p className="facts">
+                {x.summary.closed} closed{x.summary.win_rate_pct !== null ? ` · ${x.summary.win_rate_pct}% wins` : ''}
+                {x.summary.open ? (
+                  <>
+                    {' · '}
+                    {x.summary.open} open, <span className={x.summary.open_pnl_usd >= 0 ? 'up' : 'down'}>{money(x.summary.open_pnl_usd)}</span> if sold now
+                  </>
+                ) : null}
+              </p>
+            </article>
+          ))}
+        </div>
+        {anyClosed ? (
+          <>
+            <h3 className="sub">Running total of closed trades</h3>
+            <PnlLines strategies={strategies} start={firstAlert} end={end} W={chartWidth(narrow)} />
+          </>
+        ) : (
+          <p className="muted">No closed trades yet: the running totals appear here once one sells out.</p>
+        )}
+      </section>
+
+      <section className="card">
         <h2>What the Scout flagged vs. what happened</h2>
         <p className="muted">
-          Every potential-runner alert, and its paper trade: $10 at the alert price, sold at 2×, −50%, if liquidity vanished, or after 3 days, with 2% fees each way. Paper money only. Not financial advice.
+          Every potential-runner alert, and how each strategy's paper trade on it played out. Best is the highest price seen after the alert.
         </p>
         {data.scout.alerts.length === 0 ? (
           <p className="muted">No alerts yet. Most days nothing qualifies, by design.</p>
+        ) : narrow ? (
+          <ol className="alert-list">
+            {data.scout.alerts.map((a) => (
+              <li key={`${a.chain}-${a.symbol}-${a.alerted_at}`}>
+                <div className="head">
+                  <b>{a.symbol}</b> <span className="muted">{a.chain}</span>
+                  <span className="muted when">
+                    {new Date(a.alerted_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · best{' '}
+                    {a.peak_x === null ? '–' : `${a.peak_x}×`}
+                  </span>
+                </div>
+                <div className="trio">
+                  {strategies.map((x) => (
+                    <div key={x.key}>
+                      <span className="name">
+                        <span className="swatch" style={{ background: STRATEGY_COLOR[x.key] }} />
+                        {x.name}
+                      </span>
+                      <Result as="div" r={a.trades[x.key]} />
+                    </div>
+                  ))}
+                </div>
+                <p className="muted small">
+                  {usd(a.volume_h24_usd)} 24 h volume · {usd(a.fdv_usd)} FDV
+                </p>
+              </li>
+            ))}
+          </ol>
         ) : (
           <div className="scroll">
-            <table>
+            <table className="results">
               <thead>
-                <tr><th>Coin</th><th>Alerted</th><th>24 h volume</th><th>FDV</th><th>Best</th><th>Result</th></tr>
+                <tr>
+                  <th>Coin</th>
+                  <th>Alerted</th>
+                  <th>24 h volume</th>
+                  <th>FDV</th>
+                  <th>Best</th>
+                  {strategies.map((x) => (
+                    <th key={x.key}>
+                      <span className="swatch" style={{ background: STRATEGY_COLOR[x.key] }} />
+                      {x.name}
+                    </th>
+                  ))}
+                </tr>
               </thead>
               <tbody>
                 {data.scout.alerts.map((a) => (
@@ -171,7 +285,9 @@ export default function Stats() {
                     <td>{usd(a.volume_h24_usd)}</td>
                     <td>{usd(a.fdv_usd)}</td>
                     <td>{a.peak_x === null ? '–' : `${a.peak_x}×`}</td>
-                    <td className={a.pnl_usd === null ? '' : a.pnl_usd >= 0 ? 'up' : 'down'}>{outcome(a)}</td>
+                    {strategies.map((x) => (
+                      <Result key={x.key} r={a.trades[x.key]} />
+                    ))}
                   </tr>
                 ))}
               </tbody>

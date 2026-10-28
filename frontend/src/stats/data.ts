@@ -18,25 +18,55 @@ export interface Day {
   fatigue: number | null
 }
 
+/** The three paper-trading strategies (validated as a set on the dark card surface). */
+export const STRATEGY_COLOR = { quick: '#199e70', runner: '#c98500', moon: '#9085e9' } as const
+export type StrategyKey = keyof typeof STRATEGY_COLOR
+export const STRATEGY_KEYS: StrategyKey[] = ['quick', 'runner', 'moon']
+
+export interface PaperResult {
+  status: 'open' | 'closed'
+  exit_reason: string | null
+  now_x: number | null
+  sold_pct: number
+  pnl_usd: number | null // closed
+  pnl_now_usd: number | null // open: if sold now
+}
+
 export interface Alert {
   symbol: string
   chain: string
   alerted_at: string
   fdv_usd: number | null
   volume_h24_usd: number | null
-  status: 'open' | 'closed' | null
-  exit_reason: string | null
-  now_x: number | null
   peak_x: number | null
-  pnl_usd: number | null
+  trades: Partial<Record<StrategyKey, PaperResult>>
+}
+
+export interface Summary {
+  closed: number
+  open: number
+  wins: number
+  win_rate_pct: number | null
+  total_pnl_usd: number
+  return_pct: number | null
+  open_pnl_usd: number
+}
+
+export interface Strategy {
+  key: StrategyKey
+  name: string
+  blurb: string
+  summary: Summary
+  curve: { at: string; pnl_usd: number }[] // running total of closed trades
 }
 
 export interface Stats {
+  generated_at: string
   health: Day[]
   scout: {
     scans_30d: number
     alerts: Alert[]
-    paper: { closed: number; open: number; wins: number; win_rate_pct: number | null; total_pnl_usd: number; return_pct: number | null }
+    strategies: Strategy[]
   }
 }
 
@@ -77,16 +107,69 @@ export function demoStats(end = new Date()): Stats {
     })
   }
   const ago = (days: number) => new Date(end.getTime() - days * 86_400_000).toISOString()
+  const closed = (pnl: number, x: number, why: string): PaperResult => ({
+    status: 'closed', exit_reason: why, now_x: x, sold_pct: 100, pnl_usd: pnl, pnl_now_usd: null,
+  })
+  const open = (x: number, sold: number, now: number): PaperResult => ({
+    status: 'open', exit_reason: null, now_x: x, sold_pct: sold, pnl_usd: null, pnl_now_usd: now,
+  })
+  const sum = (s: Partial<Summary>): Summary => ({
+    closed: 0, open: 0, wins: 0, win_rate_pct: null, total_pnl_usd: 0, return_pct: null, open_pnl_usd: 0, ...s,
+  })
   return {
+    generated_at: end.toISOString(),
     health,
     scout: {
       scans_30d: 4211,
       alerts: [
-        { symbol: 'DEMO3', chain: 'base', alerted_at: ago(1), fdv_usd: 2.1e6, volume_h24_usd: 1.4e6, status: 'open', exit_reason: null, now_x: 0.93, peak_x: 1.12, pnl_usd: null },
-        { symbol: 'DEMO2', chain: 'solana', alerted_at: ago(6), fdv_usd: 9.7e6, volume_h24_usd: 6.1e6, status: 'closed', exit_reason: 'stop_loss', now_x: 0.47, peak_x: 1.31, pnl_usd: -5.48 },
-        { symbol: 'DEMO1', chain: 'solana', alerted_at: ago(12), fdv_usd: 4.2e6, volume_h24_usd: 3.3e6, status: 'closed', exit_reason: 'take_profit', now_x: 2.1, peak_x: 2.6, pnl_usd: 10.17 },
+        {
+          symbol: 'DEMO4', chain: 'base', alerted_at: ago(1), fdv_usd: 2.1e6, volume_h24_usd: 1.4e6, peak_x: 1.12,
+          trades: { quick: open(0.93, 0, -0.95), runner: open(0.93, 0, -0.95), moon: open(0.93, 0, -0.95) },
+        },
+        {
+          symbol: 'DEMO3', chain: 'solana', alerted_at: ago(5), fdv_usd: 3.8e6, volume_h24_usd: 4.4e6, peak_x: 7.9,
+          trades: {
+            quick: closed(10.17, 2.1, 'take_profit'),
+            runner: closed(42.2, 5.4, 'trailing_stop'),
+            moon: open(4.6, 75, 31.06),
+          },
+        },
+        {
+          symbol: 'DEMO2', chain: 'solana', alerted_at: ago(9), fdv_usd: 9.7e6, volume_h24_usd: 6.1e6, peak_x: 1.31,
+          trades: {
+            quick: closed(-5.48, 0.47, 'stop_loss'),
+            runner: closed(-5.48, 0.47, 'stop_loss'),
+            moon: closed(-5.48, 0.47, 'stop_loss'),
+          },
+        },
+        {
+          symbol: 'DEMO1', chain: 'solana', alerted_at: ago(14), fdv_usd: 4.2e6, volume_h24_usd: 3.3e6, peak_x: 2.6,
+          trades: {
+            quick: closed(10.17, 2.1, 'take_profit'),
+            runner: closed(7.27, 1.82, 'trailing_stop'),
+            moon: closed(5.27, 1.3, 'trailing_stop'),
+          },
+        },
       ],
-      paper: { closed: 2, open: 1, wins: 1, win_rate_pct: 50, total_pnl_usd: 4.69, return_pct: 23.5 },
+      strategies: [
+        {
+          key: 'quick', name: 'Quick 2×', blurb: 'Sell everything at 2×. Stop at −50%, sell after 3 days.',
+          summary: sum({ closed: 3, open: 1, wins: 2, win_rate_pct: 67, total_pnl_usd: 14.86, return_pct: 49.5, open_pnl_usd: -0.95 }),
+          curve: [{ at: ago(13), pnl_usd: 10.17 }, { at: ago(8.6), pnl_usd: 4.69 }, { at: ago(4.8), pnl_usd: 14.86 }],
+        },
+        {
+          key: 'runner', name: 'Runner',
+          blurb: 'No fixed target: once it hits 2×, sell when it drops 30% from its peak. Stop at −50%, sell after 7 days.',
+          summary: sum({ closed: 3, open: 1, wins: 2, win_rate_pct: 67, total_pnl_usd: 43.99, return_pct: 146.6, open_pnl_usd: -0.95 }),
+          curve: [{ at: ago(12.5), pnl_usd: 7.27 }, { at: ago(8.6), pnl_usd: 1.79 }, { at: ago(3.9), pnl_usd: 43.99 }],
+        },
+        {
+          key: 'moon', name: 'Moon bag',
+          blurb: 'Sell half at 2× (stake back) and a quarter at 5×; the last quarter rides for 10× or more with a 50% trailing stop, up to 14 days.',
+          summary: sum({ closed: 2, open: 2, wins: 1, win_rate_pct: 50, total_pnl_usd: -0.21, return_pct: -1.1, open_pnl_usd: 30.11 }),
+          curve: [{ at: ago(11.8), pnl_usd: 5.27 }, { at: ago(8.6), pnl_usd: -0.21 }],
+        },
+      ],
     },
   }
 }

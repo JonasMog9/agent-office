@@ -4,7 +4,7 @@ Guidance for Claude Code (and humans) working in this repo.
 
 ## What this is
 
-Agent Office: a cloud-hosted team of three AI agents (Manager, Health Coach, Market Scout) controlled from Telegram and shown live as animated robots in a 2D office. **Read [PLAN.md](PLAN.md) first.** It holds the goal, the architecture, the Health Coach formulas, and the build phases with their checklists. Work one phase at a time, in order, and tick the PLAN.md boxes when a phase's "done when" condition is met.
+Agent Office: a cloud-hosted team of three AI agents (Manager, Health Coach, Market Scout) controlled from Telegram and shown live as animated robots in a 2D office. A fourth robot, the Paper Trader, is not a model: it gives the Scout's paper-trading book a body in the office. **Read [PLAN.md](PLAN.md) first.** It holds the goal, the architecture, the Health Coach formulas, and the build phases with their checklists. Work one phase at a time, in order, and tick the PLAN.md boxes when a phase's "done when" condition is met.
 
 ## Stack
 
@@ -55,7 +55,7 @@ PLAN.md
 - **Market Scout is read-only.** No wallet, no exchange keys, no buy/sell actions. Every brief ends with a "not financial advice" line.
 - **Telegram bot answers only the owner's user ID** (from an env var); reject everyone else. Likewise the Strava webhook only processes events for the owner's athlete ID.
 - **Ingestion is idempotent.** The Shortcut resends the last 3 days every time, so `/ingest/health` upserts by date. Strava is the source of truth for workouts; Apple Health data covers daily wellness only, so nothing is double counted.
-- **Every agent step emits an event** `{agent, status: idle|thinking|walking|working|talking, target, text}` to the event bus; the office animates from these.
+- **Every agent step emits an event** `{agent, status: idle|thinking|walking|working|talking, target, text}` to the event bus; the office animates from these. The Paper Trader's events come from the paper-trading book (`agents/trader.py`), built from its numbers in Python.
 - **Keep CI green.** Run `ruff check`, `ruff format --check` and `pytest` before pushing.
 - Compare HRV only against the user's own baseline (Apple Watch reports SDNN, not RMSSD).
 - **ML is evaluated, not assumed.** Any learned model ships with a reproducible training script, cross-validated metrics, and a comparison against the simple baseline it replaces. If it doesn't beat the baseline, say so and keep the baseline.

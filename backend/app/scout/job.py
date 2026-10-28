@@ -1,13 +1,16 @@
 """The scheduled scan: run it, send any new alert to the owner on Telegram, then update the
-paper-trading book (and say when a paper trade closes)."""
+paper-trading book (and say when a coin's paper trades have all closed)."""
 
 import logging
 from datetime import UTC, datetime
 
+from sqlalchemy import select
+
 from app.agents.routes import anthropic_client
 from app.agents.team import write_alert
+from app.agents.trader import report_scan
 from app.config import get_settings
-from app.db.models import ScoutAlert, ScoutScan
+from app.db.models import PaperTrade, ScoutAlert, ScoutScan
 from app.db.session import SessionLocal
 from app.scout import paper_book
 from app.scout import settings as scout_settings
@@ -61,17 +64,25 @@ def scan_now() -> ScoutScan:
 
 
 def update_paper_trades(session, src: MarketData) -> None:  # noqa: ANN001
-    """Open trades for new alerts, re-price the open ones, report any that closed."""
+    """Open trades for new alerts (replaying older ones), re-price the open ones, and once
+    all of a coin's strategies have closed, send one message with how each did."""
+    now = datetime.now(UTC)
+    sales: list[str] = []
     try:
-        paper_book.open_missing(session)
-        closed = paper_book.update(session, src, datetime.now(UTC))
+        opened = paper_book.open_missing(session, src, now)
+        closed = paper_book.update(session, src, now, sales.append)
     except Exception:  # noqa: BLE001  (paper trading never stops the scanner)
         log.exception("Paper trade update failed")
         return
-    if closed:
-        totals = paper_book.book(session)["summary"]
-        for t in closed:
-            try:
-                send(paper_book.closed_message(t, totals))
-            except Exception:  # noqa: BLE001
-                log.exception("Sending the paper trade close for %s failed", t.symbol)
+    report_scan(opened, sales)
+    if not closed:
+        return
+    totals = paper_book.summaries(session)
+    for alert_id in dict.fromkeys(t.alert_id for t in closed):
+        trades = session.scalars(select(PaperTrade).where(PaperTrade.alert_id == alert_id)).all()
+        if any(t.closed_at is None for t in trades):
+            continue  # another strategy still holds some
+        try:
+            send(paper_book.closed_message(list(trades), totals))
+        except Exception:  # noqa: BLE001
+            log.exception("Sending the paper trade close for %s failed", trades[0].symbol)

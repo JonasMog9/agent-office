@@ -7,6 +7,7 @@
   --health_coach: #ff6fb1;
   --manager: #5d8dff;
   --market_scout: #fcc419;
+  --paper_trader: #3ddc97;
   font-family: -apple-system, 'SF Pro Text', 'Segoe UI', Roboto, Inter, 'Helvetica Neue', Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -160,6 +161,7 @@ h1 {
 .where i.health_coach { background: var(--health_coach); }
 .where i.manager { background: var(--manager); }
 .where i.market_scout { background: var(--market_scout); }
+.where i.paper_trader { background: var(--paper_trader); }
 .views {
   display: flex;
   flex: none;
@@ -188,7 +190,7 @@ h1 {
 
 .agents {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   margin: 16px 0 22px;
 }
@@ -234,10 +236,16 @@ h1 {
 .health_coach .dot { background: var(--health_coach); }
 .manager .dot { background: var(--manager); }
 .market_scout .dot { background: var(--market_scout); }
+.paper_trader .dot { background: var(--paper_trader); }
 .agent.busy .dot { animation: glow 1.2s ease-in-out infinite; }
 .agent.health_coach.busy { border-color: rgba(255, 111, 177, 0.45); }
 .agent.manager.busy { border-color: rgba(93, 141, 255, 0.5); }
 .agent.market_scout.busy { border-color: rgba(252, 196, 25, 0.45); }
+.agent.paper_trader.busy { border-color: rgba(61, 220, 151, 0.45); }
+
+@media (max-width: 1000px) {
+  .agents { grid-template-columns: repeat(2, 1fr); }
+}
 
 @keyframes glow {
   50% { transform: scale(1.35); opacity: 0.7; }
@@ -457,7 +465,128 @@ a.pill.link:hover {
   overflow-x: auto;
 }
 
+.strategies {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 12px 0 8px;
+}
+.strategy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 13px 15px;
+  border-radius: 14px;
+  background: rgba(8, 12, 28, 0.55);
+  border: 1px solid var(--line);
+}
+.strategy header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.strategy .num {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.strategy h3 {
+  margin: 0 0 0 auto;
+  font-size: 0.95rem;
+}
+.strategy .blurb {
+  margin: 0;
+  flex: 1;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #c3cbe6;
+}
+.strategy .pnl {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 1.55rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.strategy .pnl em {
+  font-style: normal;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.strategy .facts {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.swatch {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.strategy .swatch { margin-right: 0; }
+.card h3.sub {
+  margin: 14px 0 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+table.results td small,
+.alert-list .trio small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+}
+.alert-list {
+  list-style: none;
+  margin: 10px 0 4px;
+  padding: 0;
+}
+.alert-list li {
+  padding: 11px 0;
+  border-top: 1px solid rgba(130, 160, 255, 0.08);
+}
+.alert-list li:first-child { border-top: 0; }
+.alert-list .head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+.alert-list .when {
+  margin-left: auto;
+  font-size: 0.78rem;
+}
+.alert-list .trio {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+.alert-list .trio .name {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.alert-list .trio .name .swatch { width: 8px; height: 8px; margin-right: 4px; }
+.alert-list .trio small { font-weight: 400; }
+.alert-list .small {
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+}
+
 @media (max-width: 700px) {
+  .strategies { grid-template-columns: 1fr; }
   .stats .tiles { grid-template-columns: 1fr 1fr; }
   .stats .top { flex-wrap: wrap; }
   .stats .actions { width: 100%; justify-content: flex-end; }

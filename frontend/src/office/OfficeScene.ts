@@ -1,4 +1,4 @@
-// The office. Three rooms far apart on a night-time floor, joined by long hallways, with a robot
+// The office. Four rooms far apart on a night-time floor, joined by long hallways, with a robot
 // per agent. Every event the backend sends becomes one step on a single timeline (timeline.ts),
 // so the story plays in order: the Manager flies all the way to the Health Lab before the Coach
 // answers, and carries the answer back out to the uplink ("to you", i.e. Telegram).
@@ -22,6 +22,7 @@ import {
   ecg,
   hallwayPulses,
   holoLines,
+  pnlBoard,
   serverLights,
   statusBoard,
   ticker,
@@ -35,7 +36,7 @@ import { hexNum, paint, rr, vgrad } from './art/paint'
 import { Bot, type BotState } from './art/robot'
 
 const SPEED = 300 // flying speed, world units per second
-const TAG_COLOR: Record<AgentId, string> = { health_coach: '#ff6fb1', manager: '#5d8dff', market_scout: '#fcc419' }
+const TAG_COLOR: Record<AgentId, string> = { health_coach: '#ff6fb1', manager: '#5d8dff', market_scout: '#fcc419', paper_trader: '#3ddc97' }
 export type View = 'overview' | 'follow'
 
 interface ChoreRun {
@@ -90,6 +91,7 @@ export class OfficeScene extends Phaser.Scene {
     candles(this)
     serverLights(this)
     ticker(this)
+    pnlBoard(this)
     this.board = statusBoard(this)
     this.belt = treadmillBelt(this)
     this.props()

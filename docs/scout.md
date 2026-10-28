@@ -37,22 +37,38 @@ get its data, it fails.** Passing every test still doesn't make a coin safe.
 
 Each coin alerts at most once, and at most 3 alerts go out in 24 hours.
 
-## Paper trading
+## Paper trading: three strategies
 
-The Scout never trades real money. Every alert opens a **pretend $10 trade** at the price when
-the alert went out, so you can see whether the alerts would have made money. Each scan
-re-prices open trades and sells at the first rule that fires:
+The Scout never trades real money. Every alert opens a **pretend $10 trade with each of three
+strategies** at the price when the alert went out. They buy the same coins at the same price
+and only sell differently, so the stats page shows which way of selling would have made money.
 
-| Rule | Sells when |
-| --- | --- |
-| Take profit | price ≥ 2× the entry |
-| Stop loss | price ≤ half the entry |
-| Rug | the pool's liquidity drops below $1,000 |
-| Time | 3 days after the entry |
+| # | Strategy | Sells |
+| --- | --- | --- |
+| 1 | **Quick 2×** | everything at 2×. Stop at −50%, sell after 3 days |
+| 2 | **Runner** | no fixed target: once it has reached 2×, everything when it falls 30% below its peak (a 5× that fades sells near 3.5×). Stop at −50% before that, sell after 7 days |
+| 3 | **Moon bag** | half at 2× (the stake back), a quarter at 5×, and the last quarter rides for 10× or more with a 50% trailing stop, up to 14 days. Stop at −50% before the first sale |
 
-It sells at the price it actually sees (a coin can jump past 2× between checks), and charges
-2% fees and slippage on the way in and out. When a trade closes you get a short Telegram
-message with its result and the running total. The rules are in `backend/app/scout/paper.py`.
+All three also sell whatever is left if the pool's liquidity drops below $1,000 (a rug).
+
+**Why these three.** New coins' returns are extremely skewed: most fall 90% or more from their
+peak, and a few run far past 2×. Selling everything at 2× caps the winners that have to pay
+for all the losers. Traders' usual advice is to take the stake out around 2× and let a small
+"moon bag" ride, or to trail a stop 25–35% under the peak instead of using a fixed target. I
+found no independent backtests of these rules, which is why they run side by side on the same
+alerts here.
+
+**Honest prices.** Each strategy sells at the price a scan actually sees (a coin can jump past
+2× between checks, or crash through the stop), and pays 2% fees and slippage on the way in and
+out. Alerts from before the Runner and Moon bag existed were replayed on GeckoTerminal's
+15-minute candles, using closing prices only (not the highs, which a 10-minute check would
+often miss).
+
+**Messages.** Once all three of a coin's trades have closed, you get one Telegram message with
+how each did and the running totals. In the office, the **Paper Trader** robot (no AI: it is
+this rulebook given a body) opens the trades when an alert goes out, flies up to the Scout to
+report each sale, and brings the Scout the books when you ask. The rules are in
+`backend/app/scout/paper.py`.
 
 ## Asking it things
 
@@ -61,8 +77,8 @@ Message the bot:
 - "Anything up?" or "Any runners?" gives the latest scan, its closest near misses and what
   they failed, plus any alerts from the last week.
 - "Check <Solana address>" runs the screen and every rug test on that coin now.
-- "How are my paper trades?" gives the win rate, total P/L, best and worst calls, and open
-  trades.
+- "How are my paper trades?" or "which strategy is winning?" gives each strategy's total
+  P/L and win rate, and its open trades.
 
 ## Settings (Railway → backend → Variables)
 

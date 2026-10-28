@@ -4,13 +4,14 @@ for rug tests. Free public APIs, no keys, nothing that can trade (CLAUDE.md).
     GeckoTerminal  /networks/{net}/trending_pools   what's hot in the last hour
                    /networks/{net}/pools?sort=...   the day's biggest volume
                    /networks/{net}/tokens/{addr}/pools   one token's pools (for "check this")
+                   /networks/{net}/pools/{addr}/ohlcv/minute   15-minute candles (paper replay)
     GoPlus         /api/v1/token_security/{chain_id}   EVM contract and holder report
     RugCheck       /v1/tokens/{mint}/report            Solana token report
 
 GeckoTerminal allows about 30 calls a minute; a scan makes 3 per chain.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
@@ -93,6 +94,27 @@ def pools_from_gecko(payload: dict, chain: str) -> list[Pool]:
     return out
 
 
+CANDLE = timedelta(minutes=15)
+
+
+def history_from_gecko(payload: dict) -> list[tuple[datetime, float]]:
+    """GeckoTerminal OHLCV → (candle close time, close price), oldest first (pure, tested).
+
+    Rows are [start unix time, open, high, low, close, volume], newest first. The close is
+    what a check at the end of the candle would have seen; highs and lows are left out on
+    purpose, so a replay can't sell at a wick a 10-minute check would have missed."""
+    rows = ((payload.get("data") or {}).get("attributes") or {}).get("ohlcv_list") or []
+    out = []
+    for row in rows:
+        if len(row) < 5:
+            continue
+        ts, close = _f(row[0]), _f(row[4])
+        if ts is None or close is None or close <= 0:
+            continue
+        out.append((datetime.fromtimestamp(ts, UTC) + CANDLE, close))
+    return sorted(out)
+
+
 class MarketData:
     def __init__(self, http: httpx.Client | None = None) -> None:
         self.http = http or httpx.Client(
@@ -135,6 +157,28 @@ class MarketData:
         joined = ",".join(pool_addresses[:30])
         data = self._get(f"{GECKO}/networks/{net}/pools/multi/{joined}", include="base_token")
         return {p.pool_address: p for p in pools_from_gecko(data, chain)}
+
+    def price_history(
+        self, chain: str, pool_address: str, since: datetime, pages: int = 3
+    ) -> list[tuple[datetime, float]]:
+        """15-minute closes from ``since`` to now, oldest first (1,000 candles a page, about
+        10 days; GeckoTerminal leaves out candles with no trades)."""
+        net = NETWORKS[chain]
+        url = f"{GECKO}/networks/{net}/pools/{pool_address}/ohlcv/minute"
+        out: list[tuple[datetime, float]] = []
+        before: int | None = None
+        for _ in range(pages):
+            params = {"aggregate": "15", "limit": "1000", "currency": "usd", "token": "base"}
+            if before is not None:
+                params["before_timestamp"] = str(before)
+            page = history_from_gecko(self._get(url, **params))
+            if not page:
+                break
+            out = page + out
+            if page[0][0] - CANDLE <= since:
+                break
+            before = int((page[0][0] - CANDLE).timestamp())
+        return sorted((at, price) for at, price in dict(out).items() if at > since)
 
     def goplus(self, chain: str, address: str) -> dict | None:
         data = self._get(

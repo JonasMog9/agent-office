@@ -51,7 +51,20 @@ describe('the floor plan', () => {
     expect(route('manager:in', 'exit')).toEqual(['manager:in', 'manager:door', 'junction', 'uplink:gate', 'exit'])
   })
 
+  it('takes the Paper Trader straight up its corridor to the Trading Desk', () => {
+    expect(route('paper_trader:in', 'market_scout:in')).toEqual([
+      'paper_trader:in',
+      'paper_trader:door',
+      'market_scout:corner',
+      'market_scout:door',
+      'market_scout:in',
+    ])
+    const pts = walk(spotPoint({ desk: 'paper_trader' }), spotPoint({ visit: 'market_scout' }))
+    expect(pathLength(pts[0], pts.slice(1))).toBeLessThan(900)
+  })
+
   it('rejects a shortcut through a wall', () => {
     expect(walkable(spotPoint({ desk: 'health_coach' }), spotPoint({ desk: 'market_scout' }))).toBe(false)
+    expect(walkable(spotPoint({ desk: 'manager' }), spotPoint({ desk: 'paper_trader' }))).toBe(false)
   })
 })

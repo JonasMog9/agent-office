@@ -1,8 +1,10 @@
-// Two small hand-made SVG charts: 30 days of recovery bars (coloured by zone, always with the
-// zone named in words), and fitness vs. fatigue lines. Both have a hover tooltip.
+// Small hand-made SVG charts: 30 days of recovery bars (coloured by zone, always with the
+// zone named in words), fitness vs. fatigue lines, and the paper strategies' running P/L.
+// All have a hover tooltip.
 
 import { useState } from 'react'
-import { SERIES, type Day } from './data'
+import { SERIES, STRATEGY_COLOR, type Day, type Strategy } from './data'
+import { spread, totalAt } from './pnl'
 
 const H = 250
 const PAD = { l: 34, r: 96, t: 14, b: 26 }
@@ -190,6 +192,105 @@ export function LoadLines({ days, W }: { days: Day[]; W: number }) {
             short(days[hover].day),
             `Fitness ${days[hover].fitness ?? '–'}`,
             `Fatigue ${days[hover].fatigue ?? '–'}`,
+          ]}
+        />
+      )}
+    </svg>
+  )
+}
+
+const signed = (x: number) => `${x >= 0 ? '+' : '−'}$${Math.abs(x).toFixed(2)}`
+
+const PNL_PAD = { l: 44, r: 132, t: 16, b: 26 }
+
+export function PnlLines({ strategies, start, end, W }: { strategies: Strategy[]; start: number; end: number; W: number }) {
+  const [hover, setHover] = useState<number | null>(null) // a time
+  const P = PNL_PAD
+  const iw = W - P.l - P.r
+  const ih = H - P.t - P.b
+  const vals = strategies.flatMap((s) => s.curve.map((p) => p.pnl_usd))
+  const top = Math.max(5, ...vals)
+  const bottom = Math.min(0, ...vals)
+  const span = top - bottom
+  const step = span > 60 ? 20 : span > 24 ? 10 : 5
+  const hi = Math.ceil((top + span * 0.08) / step) * step
+  const lo = Math.floor((bottom - (bottom < 0 ? span * 0.08 : 0)) / step) * step
+  const t0 = Math.min(start, end - 86_400_000)
+  const x = (t: number) => P.l + ((t - t0) / (end - t0)) * iw
+  const y = (v: number) => P.t + ih - ((v - lo) / (hi - lo)) * ih
+  const ticks: number[] = []
+  for (let v = lo; v <= hi + 1e-9; v += step) ticks.push(v)
+  const path = (s: Strategy) => {
+    let d = `M${x(t0)},${y(0)}`
+    let v = 0
+    for (const p of s.curve) {
+      const px = x(Math.max(t0, Date.parse(p.at)))
+      d += ` H${px} V${y(p.pnl_usd)}`
+      v = p.pnl_usd
+    }
+    return d + ` H${x(end)} V${y(v)}`
+  }
+  const finals = strategies.map((s) => s.curve.at(-1)?.pnl_usd ?? 0)
+  const labelY = spread(finals.map((v) => y(v) + 4), 15, P.t + 8, P.t + ih)
+  const days = Math.max(1, Math.round((end - t0) / 86_400_000))
+  const every = days > 20 ? 7 : days > 8 ? 3 : 1
+  const dayTicks: number[] = []
+  for (let d = 0; d <= days; d += every) dayTicks.push(t0 + d * 86_400_000)
+  const fromEvent = (clientX: number, el: SVGRectElement) => {
+    const box = (el.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
+    const sx = ((clientX - box.left) / box.width) * W
+    setHover(Math.max(t0, Math.min(end, t0 + ((sx - P.l) / iw) * (end - t0))))
+  }
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Paper trading profit and loss by strategy">
+      {ticks.map((v) => (
+        <g key={v}>
+          <line x1={P.l} x2={W - P.r} y1={y(v)} y2={y(v)} className={v === 0 ? 'axis' : 'grid'} />
+          <text x={P.l - 6} y={y(v) + 4} className="tick" textAnchor="end">
+            {v === 0 ? '$0' : `${v > 0 ? '+' : '−'}$${Math.abs(v)}`}
+          </text>
+        </g>
+      ))}
+      {dayTicks.map((t) => (
+        <text key={t} x={x(t)} y={H - 8} className="tick" textAnchor="middle">
+          {short(new Date(t).toISOString().slice(0, 10))}
+        </text>
+      ))}
+      {strategies.map((s) => (
+        <path key={s.key} d={path(s)} fill="none" stroke={STRATEGY_COLOR[s.key]} strokeWidth={2} strokeLinejoin="round" />
+      ))}
+      {strategies.map((s, i) => (
+        <g key={s.key}>
+          <circle cx={x(end)} cy={y(finals[i])} r={4} fill={STRATEGY_COLOR[s.key]} className="ringed" />
+          <text x={x(end) + 10} y={labelY[i]} className="end-label">
+            {s.name} {signed(finals[i])}
+          </text>
+        </g>
+      ))}
+      {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={P.t} y2={P.t + ih} className="crosshair" />}
+      {hover !== null &&
+        strategies.map((s) => (
+          <circle key={s.key} cx={x(hover)} cy={y(totalAt(s.curve, hover))} r={4.5} fill={STRATEGY_COLOR[s.key]} className="ringed" />
+        ))}
+      <rect
+        x={P.l}
+        y={P.t}
+        width={iw}
+        height={ih}
+        fill="transparent"
+        onMouseMove={(e) => fromEvent(e.clientX, e.currentTarget)}
+        onTouchMove={(e) => fromEvent(e.touches[0].clientX, e.currentTarget)}
+        onTouchStart={(e) => fromEvent(e.touches[0].clientX, e.currentTarget)}
+        onMouseLeave={() => setHover(null)}
+      />
+      {hover !== null && (
+        <Tip
+          W={W}
+          x={x(hover)}
+          y={P.t + 20}
+          lines={[
+            new Date(hover).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' }),
+            ...strategies.map((s) => `${s.name} ${signed(totalAt(s.curve, hover))}`),
           ]}
         />
       )}

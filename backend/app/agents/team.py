@@ -4,7 +4,8 @@
                                   └─ask_market_scout──► Market Scout (Sonnet 5.5) ──► scout tools
 
 The scanner (``app.scout.scan``) also wakes the Scout on its own when a coin passes every test:
-``write_alert`` has it word the alert, and the Manager carries it to the owner.
+``write_alert`` has it word the alert, and the Manager carries it to the owner. The Paper
+Trader (``trader.py``, no model) brings the Scout the paper-trading books when asked.
 
 The Manager routes and relays, it never answers health questions itself. The Health Coach
 explains numbers its tools return and never invents one (CLAUDE.md).
@@ -16,7 +17,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.agents import coach_tools
+from app.agents import coach_tools, trader
 from app.agents.events import EventBus
 from app.agents.events import bus as default_bus
 from app.agents.loop import AgentResult, Tool, run_agent
@@ -79,8 +80,10 @@ by its address → check_token (chain "auto" unless they say which).
 - Name every rug test a coin fails, plainly. A failed or unknown test means it can't be \
 trusted. Passing them all still doesn't make a coin safe: new coins are extremely volatile.
 - If nothing qualified, say so, and mention the closest near miss and what it failed.
-- "Paper trades", "P/L", "how are the trades doing?" → paper_trades. It's paper money only: \
-say so, and give the win rate and total as the tool gives them.
+- "Paper trades", "P/L", "how are the trades doing?", "which strategy is best?" → \
+paper_trades. It's paper money only: say so. Give each strategy's total and win rate as the \
+tool gives them, in one short line each, and say which is ahead. With few closed trades, \
+say it's too early to tell.
 
 Style: short and plain, read on a phone in Telegram. Money as the tools give it ("$3.1M"). \
 End every answer with the line: {NOT_ADVICE}"""
@@ -148,7 +151,12 @@ def ask_market_scout(
         agent="market_scout",
         model=SCOUT_MODEL,
         system=SCOUT_SYSTEM,
-        tools=scout_tools(session_factory, src_factory, rules),
+        tools=scout_tools(
+            session_factory,
+            src_factory,
+            rules,
+            on_books=lambda totals: trader.report_books(bus, run_id, totals),
+        ),
         prompt=question,
         bus=bus,
         run_id=run_id,

@@ -89,6 +89,26 @@ def seed() -> None:
                 exit_price=0.021,
                 exit_reason="take_profit",
                 pnl_usd=10.17,
+                held=0.0,
+                proceeds_usd=20.17,
+                rungs=1,
+            )
+        )
+        s.add(
+            PaperTrade(
+                alert_id=a.id,
+                strategy="moon",
+                chain="solana",
+                pool_address="P",
+                symbol="RUN",
+                opened_at=a.alerted_at,
+                stake_usd=10,
+                entry_price=0.01,
+                last_price=0.03,
+                peak_price=0.052,
+                held=0.25,
+                proceeds_usd=22.5,
+                rungs=2,
             )
         )
         s.add(
@@ -129,16 +149,26 @@ def test_thirty_days_with_gaps_and_scout_outcomes(client: TestClient) -> None:
     scout = body["scout"]
     assert scout["scans_30d"] == 1
     newest, oldest = scout["alerts"]
-    assert (newest["symbol"], newest["status"], newest["now_x"], newest["pnl_usd"]) == (
-        "UHI",
-        "open",
-        0.9,
-        None,
-    )
-    assert (oldest["status"], oldest["now_x"], oldest["peak_x"], oldest["pnl_usd"]) == (
-        "closed",
-        2.1,
-        2.4,
-        10.17,
-    )
+    assert (newest["symbol"], newest["peak_x"]) == ("UHI", 1.05)
+    assert newest["trades"]["quick"] == {
+        "status": "open",
+        "exit_reason": None,
+        "now_x": 0.9,
+        "sold_pct": 0,
+        "pnl_usd": None,
+        "pnl_now_usd": round(10 * 0.98 * 0.9 * 0.98 - 10, 2),
+    }
+    assert oldest["peak_x"] == 5.2  # the highest any strategy saw
+    quick, moon = oldest["trades"]["quick"], oldest["trades"]["moon"]
+    assert (quick["status"], quick["now_x"], quick["pnl_usd"]) == ("closed", 2.1, 10.17)
+    assert (moon["status"], moon["sold_pct"], moon["now_x"]) == ("open", 75, 3.0)
+    assert moon["pnl_now_usd"] == round(22.5 + 0.25 * 980 * 0.03 * 0.98 - 10, 2)
+
+    by = {x["key"]: x for x in scout["strategies"]}
+    assert list(by) == ["quick", "runner", "moon"]
+    assert by["quick"]["name"] == "Quick 2×" and by["moon"]["blurb"].startswith("Sell half")
+    assert by["quick"]["summary"]["total_pnl_usd"] == 10.17
+    assert by["quick"]["curve"] == [{"at": by["quick"]["curve"][0]["at"], "pnl_usd": 10.17}]
+    assert by["moon"]["summary"]["closed"] == 0 and by["moon"]["summary"]["open"] == 1
+    assert by["runner"]["curve"] == [] and by["runner"]["summary"]["open"] == 0
     assert scout["paper"]["closed"] == 1 and scout["paper"]["win_rate_pct"] == 100
