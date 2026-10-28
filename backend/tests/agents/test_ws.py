@@ -36,9 +36,12 @@ def test_wrong_or_missing_key_is_refused() -> None:
         # The handshake succeeds, so the browser sees the 4401 close code itself (a refusal
         # during the handshake arrives as a generic failure, and the page would just retry).
         with TestClient(app).websocket_connect(url) as ws:
-            with pytest.raises(WebSocketDisconnect) as err:
+            try:
                 ws.receive_json()
-        assert err.value.code == 4401
+                code = None
+            except WebSocketDisconnect as e:
+                code = e.code
+        assert code == 4401
 
 
 def test_no_key_configured_means_no_live_feed() -> None:
