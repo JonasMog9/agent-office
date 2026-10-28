@@ -2,7 +2,7 @@
 
 An event is ``{agent, status, target, text}`` (see CLAUDE.md):
 
-    agent    "manager" | "health_coach" | "market_scout"
+    agent    "manager" | "health_coach" | "market_scout" | "paper_trader"
     status   idle | thinking | walking | working | talking
     target   who or what it's directed at: another agent, a tool name, or "owner"
     text     a short human-readable line (speech-bubble text for "talking")
@@ -22,7 +22,8 @@ from datetime import UTC, datetime
 log = logging.getLogger(__name__)
 
 STATUSES = {"idle", "thinking", "walking", "working", "talking"}
-AGENTS = {"manager", "health_coach", "market_scout"}
+# paper_trader is the paper-trading book given a robot (app/agents/trader.py), not an AI model.
+AGENTS = {"manager", "health_coach", "market_scout", "paper_trader"}
 TEXT_LIMIT = 280
 
 

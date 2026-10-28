@@ -138,7 +138,11 @@ def scout_tools(
     src_factory: Callable[[], MarketData],
     rules: Rules,
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
+    on_books: Callable[[dict[str, dict]], None] | None = None,
 ) -> list[Tool]:
+    """The Scout's tools. ``on_books`` hears the strategy totals whenever the paper trades
+    are read, so the Paper Trader can bring them over in the office."""
+
     def scan_tool(args: dict) -> dict:
         with session_factory() as session:
             return latest_scan(session, now())
@@ -154,13 +158,16 @@ def scout_tools(
 
     def paper_tool(args: dict) -> dict:
         with session_factory() as session:
+            if on_books:
+                on_books(paper_book.summaries(session))
             return paper_book.book(session)
 
     return [
         Tool(
             "paper_trades",
-            "The paper-trading book: a pretend $10 trade on every alert, sold by fixed rules. "
-            "Win rate, total profit/loss, best and worst, open trades, recent closes.",
+            "The paper-trading book: three strategies (Quick 2×, Runner, Moon bag), each with "
+            "a pretend $10 trade on every alert and its own fixed selling rules. Per strategy: "
+            "its rules, win rate, total profit/loss, best and worst, open trades, recent closes.",
             {},
             [],
             paper_tool,

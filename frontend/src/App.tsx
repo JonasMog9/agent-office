@@ -20,6 +20,7 @@ const ROLE: Record<AgentId, string> = {
   manager: 'Routes your Telegram messages',
   health_coach: 'Recovery, sleep, training',
   market_scout: 'New-coin runners, rug tests',
+  paper_trader: 'Paper-trades every alert 3 ways (no AI)',
 }
 
 const VERB: Record<string, string> = {
@@ -135,7 +136,7 @@ function App() {
           </span>
           <div>
             <h1>Agent Office</h1>
-            <p className="tagline">Three AI agents at work, live from Telegram</p>
+            <p className="tagline">Three AI agents and a paper trader at work, live from Telegram</p>
           </div>
         </div>
         <div className="actions">
@@ -152,7 +153,8 @@ function App() {
       <section className="stage">
         <div className="stagebar">
           <span className="where">
-            <i className="health_coach" /> Health Lab <i className="manager" /> Command Room <i className="market_scout" /> Trading Desk
+            <i className="health_coach" /> Health Lab <i className="manager" /> Command Room <i className="market_scout" /> Trading Desk{' '}
+            <i className="paper_trader" /> Paper Desk
           </span>
           <div className="views" role="group" aria-label="Camera">
             {(['overview', 'follow'] as View[]).map((v) => (

@@ -1,10 +1,11 @@
 // The building: a night-time office floor seen from above, rooms lit like dioramas on a dark
 // blueprint. Static art is painted once into textures; the moving parts (heart-rate trace,
-// candlestick screens, server lights, the team status board, doors, hallway lights, the
-// uplink) are small objects the scene animates.
+// candlestick screens, server lights, the P/L board, the team status board, doors, hallway
+// lights, the uplink) are small objects the scene animates.
 
 import Phaser from 'phaser'
 import type { AgentId } from '../choreography'
+import { STRATEGY_COLOR, STRATEGY_KEYS } from '../../stats/data'
 import {
   CORRIDORS,
   DOOR_W,
@@ -16,6 +17,7 @@ import {
   WALL_FACE,
   WORLD_H,
   WORLD_W,
+  northDoor,
   roomCenterX,
   spotPoint,
 } from '../world'
@@ -33,6 +35,7 @@ export const THEMES: Record<AgentId, RoomTheme> = {
   health_coach: { title: 'HEALTH LAB', floor: ['#3b2c55', '#41315d'], wall: ['#62357f', '#3e2156'], neon: '#ff6fb1', light: '#ff9fd8' },
   manager: { title: 'COMMAND ROOM', floor: ['#22305e', '#263566'], wall: ['#25306a', '#151b44'], neon: '#5d8dff', light: '#9fc0ff' },
   market_scout: { title: 'TRADING DESK', floor: ['#2a2c37', '#2f323e'], wall: ['#2a2b36', '#15161d'], neon: '#fcc419', light: '#ffe08a' },
+  paper_trader: { title: 'PAPER DESK', floor: ['#183a30', '#1c4236'], wall: ['#1c4a3b', '#0e2a21'], neon: '#3ddc97', light: '#a5f3cf' },
 }
 
 // ---- background -----------------------------------------------------------------------------
@@ -103,8 +106,8 @@ function blueprint(ctx: Ctx): void {
     ctx.fillText(sub, x, y + 24)
   }
   label(150, 790, 'WING A', 'Health · recovery, sleep, training')
-  label(1440, 790, 'WING B', 'Markets · runners, rug tests')
-  label(1330, 960, 'CORE', 'Operations · routes every message')
+  label(1690, 585, 'WING B', 'Markets · runners, rug tests, paper trades')
+  label(380, 930, 'CORE', 'Operations · routes every message')
   // dimension lines along the main hallway
   ctx.setLineDash([6, 8])
   ctx.beginPath()
@@ -181,8 +184,10 @@ export function drawHallways(scene: Phaser.Scene): void {
     x = gx + 40
   }
   rail(x, top, spine.x + spine.w, top)
+  const paper = roomCenterX('paper_trader')
   rail(spine.x, bottom, 960, bottom)
-  rail(1040, bottom, spine.x + spine.w, bottom)
+  rail(1040, bottom, paper - 40, bottom)
+  if (paper + 40 < spine.x + spine.w) rail(paper + 40, bottom, spine.x + spine.w, bottom)
   rail(spine.x, top, spine.x, bottom)
   rail(spine.x + spine.w, top, spine.x + spine.w, bottom)
   for (const c of CORRIDORS.slice(1)) {
@@ -194,7 +199,7 @@ export function drawHallways(scene: Phaser.Scene): void {
   lightTexture(scene, 'light-cool', 'rgba(150,180,255,.9)')
   const pools: [number, number][] = []
   for (let px = 430; px <= 1570; px += 190) pools.push([px, HALL_Y])
-  pools.push([roomCenterX('health_coach'), 590], [roomCenterX('market_scout'), 590], [1000, 520], [1000, 770])
+  pools.push([roomCenterX('health_coach'), 590], [roomCenterX('market_scout'), 590], [1000, 520], [1000, 770], [roomCenterX('paper_trader'), 770])
   for (const [px, py] of pools)
     scene.add.image(px, py, 'light-cool').setDisplaySize(170, 120).setAlpha(0.16).setBlendMode(Phaser.BlendModes.ADD).setDepth(-3)
 }
@@ -205,6 +210,7 @@ export function hallwayPulses(scene: Phaser.Scene): void {
     [[roomCenterX('health_coach'), 525], [roomCenterX('health_coach'), HALL_Y], [1000, HALL_Y], [1000, UPLINK.y + UPLINK.r]],
     [[roomCenterX('market_scout'), 525], [roomCenterX('market_scout'), HALL_Y], [1000, HALL_Y], [1000, UPLINK.y + UPLINK.r]],
     [[1000, ROOMS.manager.y - WALL_FACE], [1000, UPLINK.y + UPLINK.r]],
+    [[roomCenterX('paper_trader'), ROOMS.paper_trader.y - WALL_FACE], [roomCenterX('paper_trader'), HALL_Y], [1000, HALL_Y], [1000, UPLINK.y + UPLINK.r]],
   ]
   paint(scene, 'pulse', 14, 14, (ctx) => {
     ctx.fillStyle = radial(ctx, 7, 7, 7, [[0, 'rgba(160,220,255,1)'], [0.4, 'rgba(90,170,255,.7)'], [1, 'rgba(0,0,0,0)']])
@@ -342,7 +348,7 @@ function paintRoom(ctx: Ctx, a: AgentId): void {
   // floor
   ctx.save()
   ctx.translate(ox, oy)
-  floorTiles(ctx, r.w, r.h, t, a === 'manager' ? 30 : 45)
+  floorTiles(ctx, r.w, r.h, t, a === 'manager' ? 30 : a === 'paper_trader' ? 36 : 45)
   if (a === 'manager') {
     // a round rug under the command desk
     ctx.beginPath()
@@ -355,6 +361,19 @@ function paintRoom(ctx: Ctx, a: AgentId): void {
     ctx.beginPath()
     ctx.ellipse(r.w / 2, 150, 170, 80, 0, 0, Math.PI * 2)
     ctx.strokeStyle = 'rgba(160,190,255,.12)'
+    ctx.stroke()
+  }
+  if (a === 'paper_trader') {
+    // a green banker's rug with a gold border under the desk
+    rr(ctx, r.w / 2 - 170, 70, 340, 170, 18)
+    ctx.fillStyle = '#21574a'
+    ctx.fill()
+    ctx.lineWidth = 3
+    ctx.strokeStyle = 'rgba(255,212,59,.35)'
+    ctx.stroke()
+    rr(ctx, r.w / 2 - 154, 84, 308, 142, 12)
+    ctx.strokeStyle = 'rgba(255,212,59,.15)'
+    ctx.lineWidth = 1.5
     ctx.stroke()
   }
   if (a === 'health_coach') {
@@ -391,7 +410,7 @@ function paintRoom(ctx: Ctx, a: AgentId): void {
   ctx.fillRect(0, 0, RIM, box.h)
   ctx.fillRect(box.w - RIM, 0, RIM, box.h)
   const doorX = ox + r.w / 2
-  if (a === 'manager') {
+  if (northDoor(a)) {
     ctx.fillRect(0, box.h - RIM, box.w, RIM)
     // the doorway through the back wall: hallway floor seen through it, with a frame
     ctx.fillStyle = '#262c42'
@@ -417,6 +436,7 @@ function paintRoom(ctx: Ctx, a: AgentId): void {
   if (a === 'health_coach') healthLab(ctx, r.w, r.h, t)
   if (a === 'manager') commandRoom(ctx, r.w, r.h, t)
   if (a === 'market_scout') tradingDesk(ctx, r.w, r.h, t)
+  if (a === 'paper_trader') paperDesk(ctx, r.w, r.h, t)
   ctx.restore()
 }
 
@@ -496,7 +516,7 @@ function healthLab(ctx: Ctx, w: number, h: number, t: RoomTheme): void {
 
 function commandRoom(ctx: Ctx, w: number, h: number, t: RoomTheme): void {
   // the team board (the status lights are drawn live) and a window onto the city
-  wallScreen(ctx, 24, -56, 180, 46, t.neon)
+  wallScreen(ctx, 24, -56, 240, 46, t.neon)
   ctx.font = `700 9px ${FONT}`
   ctx.fillStyle = rgba(t.light, 0.9)
   ctx.fillText('TEAM STATUS', 32, -44)
@@ -627,20 +647,123 @@ function tradingDesk(ctx: Ctx, w: number, h: number, t: RoomTheme): void {
   void h
 }
 
+function paperDesk(ctx: Ctx, w: number, h: number, t: RoomTheme): void {
+  // the P/L board (one line per strategy, drawn live) and a neon sign
+  wallScreen(ctx, 24, -56, 230, 46, t.neon)
+  ctx.font = `700 9px ${FONT}`
+  ctx.fillStyle = rgba(t.light, 0.9)
+  ctx.fillText('P/L · 3 STRATEGIES', 32, -44)
+  glowing(ctx, 12, t.neon, () => {
+    ctx.font = `800 15px ${FONT}`
+    ctx.fillStyle = '#c9ffe6'
+    ctx.textAlign = 'center'
+    ctx.fillText('PAPER MONEY ONLY', 420, -26)
+    ctx.textAlign = 'left'
+  })
+  rr(ctx, 330, -46, 180, 30, 8)
+  ctx.strokeStyle = rgba(t.neon, 0.6)
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+  // filing cabinet for the receipts (left)
+  shadowed(ctx, 10, 6, 'rgba(0,0,0,.55)', () => {
+    rr(ctx, 22, 26, 58, 96, 6)
+    ctx.fillStyle = vgrad(ctx, 26, 122, [[0, '#7c8a86'], [1, '#4c5855']])
+    ctx.fill()
+  })
+  for (let k = 0; k < 3; k++) {
+    rr(ctx, 27, 32 + k * 30, 48, 26, 3)
+    ctx.fillStyle = vgrad(ctx, 32 + k * 30, 58 + k * 30, [[0, '#8f9e9a'], [1, '#66746f']])
+    ctx.fill()
+    ctx.fillStyle = '#2b3331'
+    ctx.fillRect(43, 42 + k * 30, 16, 3)
+    ctx.fillStyle = '#f4f1e6'
+    ctx.fillRect(46, 35 + k * 30, 10, 5)
+  }
+  // a stock-ticker machine under a glass dome, its paper tape spilling onto the floor (right)
+  shadowed(ctx, 10, 6, 'rgba(0,0,0,.55)', () => {
+    rr(ctx, 452, 74, 56, 16, 4)
+    ctx.fillStyle = vgrad(ctx, 74, 90, [[0, '#6a4a2c'], [1, '#3e2a18']])
+    ctx.fill()
+  })
+  rr(ctx, 462, 56, 36, 20, 4)
+  ctx.fillStyle = vgrad(ctx, 56, 76, [[0, '#f0c75e'], [1, '#b7862a']])
+  ctx.fill()
+  ctx.beginPath()
+  ctx.ellipse(480, 50, 24, 30, 0, Math.PI, 0)
+  ctx.lineTo(504, 74)
+  ctx.lineTo(456, 74)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(190,240,255,.16)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(220,250,255,.45)'
+  ctx.lineWidth = 1.2
+  ctx.stroke()
+  ctx.fillStyle = 'rgba(255,255,255,.5)'
+  ctx.fillRect(464, 30, 3, 26)
+  ctx.beginPath()
+  ctx.moveTo(498, 84)
+  ctx.bezierCurveTo(530, 98, 500, 118, 516, 134)
+  ctx.bezierCurveTo(532, 150, 490, 160, 506, 176)
+  ctx.lineWidth = 7
+  ctx.strokeStyle = '#efe9d6'
+  ctx.stroke()
+  ctx.lineWidth = 1
+  ctx.strokeStyle = 'rgba(60,60,60,.35)'
+  ctx.setLineDash([2, 3])
+  ctx.stroke()
+  ctx.setLineDash([])
+  // the safe (bottom left), for paper money
+  shadowed(ctx, 10, 6, 'rgba(0,0,0,.6)', () => {
+    rr(ctx, 26, 196, 78, 78, 8)
+    ctx.fillStyle = vgrad(ctx, 196, 274, [[0, '#4b5654'], [1, '#262d2c']])
+    ctx.fill()
+  })
+  rr(ctx, 33, 203, 64, 64, 5)
+  ctx.strokeStyle = 'rgba(255,255,255,.14)'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(65, 235, 14, 0, Math.PI * 2)
+  ctx.fillStyle = vgrad(ctx, 221, 249, [[0, '#e9d58f'], [1, '#a98a32']])
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(65, 235, 5, 0, Math.PI * 2)
+  ctx.fillStyle = '#3b3220'
+  ctx.fill()
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2
+    ctx.fillStyle = '#5c4a1e'
+    ctx.fillRect(65 + Math.cos(a) * 10 - 0.75, 235 + Math.sin(a) * 10 - 0.75, 1.5, 1.5)
+  }
+  // a stack of paper on the floor beside it
+  for (let k = 0; k < 4; k++) {
+    rr(ctx, 116 + (k % 2) * 2, 250 - k * 5, 34, 22, 2)
+    ctx.fillStyle = k % 2 ? '#e8e3d3' : '#f6f2e6'
+    ctx.fill()
+  }
+  plant(ctx, 515, 262, 1)
+  lightPool(ctx, w / 2, 140, 260, t.light, 0.14)
+  lightPool(ctx, 480, 70, 120, '#ffd43b', 0.08)
+  void h
+}
+
 // ---- desks: separate images, so a robot standing behind one is partly hidden by it --------------
 
 function paintDesk(ctx: Ctx, a: AgentId): void {
   const t = THEMES[a]
   const dark = a === 'market_scout'
+  const wood = a === 'paper_trader' // a banker's desk
+  const top: [number, string][] = dark ? [[0, '#5a5e6e'], [1, '#3d404d']] : wood ? [[0, '#a8774a'], [1, '#7d532f']] : [[0, '#f2f4fa'], [1, '#cfd5e3']]
+  const face: [number, string][] = dark ? [[0, '#33363f'], [1, '#202229']] : wood ? [[0, '#6a4427'], [1, '#4d2f1a']] : [[0, '#b9c0d2'], [1, '#8d95ab']]
   // top
   shadowed(ctx, 14, 8, 'rgba(0,0,0,.55)', () => {
     rr(ctx, 6, 6, 168, 30, 10)
-    ctx.fillStyle = vgrad(ctx, 6, 36, dark ? [[0, '#5a5e6e'], [1, '#3d404d']] : [[0, '#f2f4fa'], [1, '#cfd5e3']])
+    ctx.fillStyle = vgrad(ctx, 6, 36, top)
     ctx.fill()
   })
   // front face
   rr(ctx, 10, 30, 160, 28, 8)
-  ctx.fillStyle = vgrad(ctx, 30, 58, dark ? [[0, '#33363f'], [1, '#202229']] : [[0, '#b9c0d2'], [1, '#8d95ab']])
+  ctx.fillStyle = vgrad(ctx, 30, 58, face)
   ctx.fill()
   glowing(ctx, 8, t.neon, () => {
     ctx.fillStyle = t.neon
@@ -648,8 +771,16 @@ function paintDesk(ctx: Ctx, a: AgentId): void {
   })
   // a keyboard on top
   rr(ctx, 64, 14, 52, 12, 3)
-  ctx.fillStyle = dark ? '#16171c' : '#9aa3b8'
+  ctx.fillStyle = dark ? '#16171c' : wood ? '#2f6b4f' : '#9aa3b8'
   ctx.fill()
+  if (wood) {
+    // a green banker's lamp
+    rr(ctx, 136, 10, 26, 9, 4)
+    ctx.fillStyle = '#1f8a5c'
+    ctx.fill()
+    ctx.fillStyle = '#d9b44a'
+    ctx.fillRect(147, 18, 3, 8)
+  }
 }
 
 function paintHolo(ctx: Ctx, a: AgentId): void {
@@ -671,7 +802,12 @@ export interface Desk {
   frame?: number
 }
 
-const SUBTITLE: Record<AgentId, string> = { health_coach: 'Health Coach', manager: 'Manager', market_scout: 'Market Scout' }
+const SUBTITLE: Record<AgentId, string> = {
+  health_coach: 'Health Coach',
+  manager: 'Manager',
+  market_scout: 'Market Scout',
+  paper_trader: 'Paper Trader',
+}
 
 export function drawRooms(scene: Phaser.Scene): Record<AgentId, Desk> {
   const desks = {} as Record<AgentId, Desk>
@@ -707,7 +843,7 @@ export function drawDoors(scene: Phaser.Scene): Door[] {
   return (Object.keys(ROOMS) as AgentId[]).map((a) => {
     const r = ROOMS[a]
     const x = roomCenterX(a)
-    const north = a === 'manager'
+    const north = northDoor(a)
     const y = north ? r.y - 6 : r.y + r.h + RIM / 2
     const h = north ? 10 : RIM - 2
     const color = hexNum(THEMES[a].neon)
@@ -948,15 +1084,16 @@ export type BoardState = 'idle' | 'busy' | 'talk' | 'away'
 /** The team status board in the Command Room: a light per agent. */
 export function statusBoard(scene: Phaser.Scene): (states: Record<AgentId, BoardState>) => void {
   const r = ROOMS.manager
-  const order: AgentId[] = ['health_coach', 'manager', 'market_scout']
+  const order: AgentId[] = ['health_coach', 'manager', 'market_scout', 'paper_trader']
+  const short: Record<AgentId, string> = { health_coach: 'COACH', manager: 'MGR', market_scout: 'SCOUT', paper_trader: 'PAPER' }
   const colors: Record<BoardState, number> = { idle: 0x51cf66, busy: 0x4de1ff, talk: 0xffffff, away: 0xffc94d }
   const lights = order.map((a, i) => {
-    const x = r.x + 50 + i * 55
+    const x = r.x + 44 + i * 52
     const y = r.y - 56 + 30
     const dot = scene.add.circle(x, y, 5, colors.idle).setDepth(2)
     const halo = scene.add.circle(x, y, 10, colors.idle, 0.25).setDepth(2).setBlendMode(Phaser.BlendModes.ADD)
     scene.add
-      .text(x + 9, y, a === 'health_coach' ? 'COACH' : a === 'manager' ? 'MGR' : 'SCOUT', {
+      .text(x + 9, y, short[a], {
         fontFamily: FONT,
         fontSize: '7px',
         color: '#c9d6ff',
@@ -974,6 +1111,48 @@ export function statusBoard(scene: Phaser.Scene): (states: Record<AgentId, Board
       halo.setFillStyle(colors[states[a]], 0.25)
     }
   }
+}
+
+/** The Paper Desk's P/L board: one wandering line per strategy, in the stats page's colours. */
+export function pnlBoard(scene: Phaser.Scene): void {
+  const r = ROOMS.paper_trader
+  const g = scene.add.graphics().setDepth(1)
+  const x0 = r.x + 24 + 8
+  const y0 = r.y - 56 + 30
+  const N = 26
+  const series = STRATEGY_KEYS.map((_, s) => Array.from({ length: N }, (_, i) => Math.sin(i * 0.35 + s * 2) * 5 - s * 2))
+  const draw = () => {
+    g.clear()
+    g.lineStyle(1, 0xffffff, 0.12).lineBetween(x0, y0, x0 + 214, y0)
+    series.forEach((vals, s) => {
+      g.lineStyle(1.6, hexNum(STRATEGY_COLOR[STRATEGY_KEYS[s]]), 1)
+      g.beginPath()
+      vals.forEach((v, i) => {
+        const x = x0 + (i / (N - 1)) * 214
+        // steps, like the stats page's running totals
+        if (i === 0) g.moveTo(x, y0 + v)
+        else {
+          g.lineTo(x, y0 + vals[i - 1])
+          g.lineTo(x, y0 + v)
+        }
+      })
+      g.strokePath()
+    })
+  }
+  draw()
+  scene.time.addEvent({
+    delay: 1400,
+    loop: true,
+    callback: () => {
+      series.forEach((vals, s) => {
+        vals.shift()
+        const last = vals[vals.length - 1]
+        const jump = Math.random() < 0.35 ? (Math.random() - 0.5 - s * 0.05) * 9 : 0
+        vals.push(Math.max(-11, Math.min(11, last + jump)))
+      })
+      draw()
+    },
+  })
 }
 
 /** The treadmill belt, which only rolls while someone's on it. */

@@ -33,6 +33,12 @@ const CHORES: Record<AgentId, (Omit<Chore, 'at'> & { dx: number; dy: number })[]
     { name: 'servers', dx: 112, dy: 150, anim: 'type', ms: 3800, label: 'Scanning new coins' },
     { name: 'signal', dx: 410, dy: 290, anim: 'look', ms: 3400, label: 'On patrol' },
   ],
+  paper_trader: [
+    { name: 'P/L board', dx: 140, dy: 74, anim: 'look', ms: 3800, label: 'Checking the P/L' },
+    { name: 'ticker', dx: 430, dy: 120, anim: 'type', ms: 3800, label: 'Reading the tape' },
+    { name: 'files', dx: 120, dy: 140, anim: 'type', ms: 3400, label: 'Filing receipts' },
+    { name: 'safe', dx: 185, dy: 262, anim: 'look', ms: 3200, label: 'Counting paper money' },
+  ],
 }
 
 export function choresFor(agent: AgentId): Chore[] {

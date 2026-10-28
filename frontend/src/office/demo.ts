@@ -1,6 +1,7 @@
 // Scripted runs for the public page: the same event shapes the backend sends, with made-up
-// numbers, so anyone can watch the office without seeing the owner's real data. Three
-// scenarios take turns: a health question, a Market Scout alert, and a paper-trading check.
+// numbers, so anyone can watch the office without seeing the owner's real data. Four
+// scenarios take turns: a health question, a Market Scout alert (and the Paper Trader opening
+// its trades), a paper-trading check, and a paper sale.
 
 import type { OfficeEvent } from './choreography'
 
@@ -32,6 +33,8 @@ const ALERT: Step[] = [
   { wait: 200, agent: 'manager', status: 'walking', target: 'owner', text: 'Bringing you the alert' },
   { wait: 300, agent: 'manager', status: 'talking', target: 'owner', text: 'Demo: 🚀 Potential runner: DEMO on Solana' },
   { wait: 300, agent: 'manager', status: 'idle', target: null, text: '' },
+  { wait: 300, agent: 'paper_trader', status: 'working', target: 'paper_trades', text: 'Opening paper trades on DEMO: $10 with each of 3 strategies' },
+  { wait: 300, agent: 'paper_trader', status: 'idle', target: null, text: '' },
 ]
 
 const PAPER: Step[] = [
@@ -40,15 +43,27 @@ const PAPER: Step[] = [
   { wait: 400, agent: 'manager', status: 'walking', target: 'market_scout', text: 'Asking the Market Scout' },
   { wait: 900, agent: 'market_scout', status: 'thinking', target: 'manager', text: 'Thinking…' },
   { wait: 900, agent: 'market_scout', status: 'working', target: 'paper_trades', text: 'Checking paper trades' },
-  { wait: 1500, agent: 'market_scout', status: 'talking', target: 'manager',
-    text: 'Demo: 4 paper trades. 1 closed at 2.1× (+$10.17), 3 still open. Paper money only. Not financial advice.' },
+  { wait: 300, agent: 'paper_trader', status: 'working', target: 'paper_trades', text: 'Pulling the books' },
+  { wait: 300, agent: 'paper_trader', status: 'walking', target: 'market_scout', text: 'Bringing the Scout the books' },
+  { wait: 300, agent: 'paper_trader', status: 'talking', target: 'market_scout',
+    text: 'Demo: Closed so far: Quick 2× +$14.86 (3) · Runner +$43.99 (3) · Moon bag −$0.21 (2). Paper money only.' },
+  { wait: 300, agent: 'paper_trader', status: 'idle', target: null, text: '' },
+  { wait: 300, agent: 'market_scout', status: 'talking', target: 'manager',
+    text: 'Demo: Runner leads with +$43.99 over 3 closed trades, Quick 2× +$14.86, Moon bag −$0.21 with 2 still open. Too early to call. Paper money only. Not financial advice.' },
   { wait: 300, agent: 'market_scout', status: 'idle', target: null, text: '' },
   { wait: 200, agent: 'manager', status: 'walking', target: 'owner', text: 'Back with the answer' },
-  { wait: 300, agent: 'manager', status: 'talking', target: 'owner', text: 'Demo: one win so far, +$10.17 on paper. Not financial advice.' },
+  { wait: 300, agent: 'manager', status: 'talking', target: 'owner', text: 'Demo: Runner is ahead, +$43.99 on paper. Not financial advice.' },
   { wait: 300, agent: 'manager', status: 'idle', target: null, text: '' },
 ]
 
-export const SCENARIOS: Step[][] = [HEALTH, ALERT, PAPER]
+const SALE: Step[] = [
+  { wait: 0, agent: 'paper_trader', status: 'walking', target: 'market_scout', text: 'Telling the Scout about a sale' },
+  { wait: 300, agent: 'paper_trader', status: 'talking', target: 'market_scout',
+    text: 'Demo: Moon bag sold half of DEMO at 2.1×. Quick 2× sold all of DEMO at 2.1× (hit its target): +$10.17.' },
+  { wait: 300, agent: 'paper_trader', status: 'idle', target: null, text: '' },
+]
+
+export const SCENARIOS: Step[][] = [HEALTH, ALERT, PAPER, SALE]
 
 let runs = 0
 

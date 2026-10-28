@@ -4,6 +4,7 @@
 //   Health Coach   pink and purple, a sweatband, a heart on its chest
 //   Manager        blue, a headset with a mic and a gold tie
 //   Market Scout   a dark cowl with pointed ears, a cape, a yellow belt and bat emblem
+//   Paper Trader   emerald green, an accountant's visor, a pencil behind its ear, a gold $
 
 import Phaser from 'phaser'
 import type { AgentId } from '../choreography'
@@ -24,6 +25,7 @@ export const LOOKS: Record<AgentId, Look> = {
   health_coach: { body: '#ff6fb1', dark: '#8f3ad6', accent: '#ffd1ec', eye: '#ff9fdc', shell: ['#fbf8ff', '#d3c8e6'] },
   manager: { body: '#5d8dff', dark: '#2a3fc0', accent: '#ffd43b', eye: '#7df4ff', shell: ['#f7f9ff', '#c4ccde'] },
   market_scout: { body: '#3b3e4a', dark: '#15161b', accent: '#fcc419', eye: '#ffffff', shell: ['#33363f', '#121318'] },
+  paper_trader: { body: '#2fbf71', dark: '#11734a', accent: '#ffd43b', eye: '#8dffc8', shell: ['#f5fbf7', '#c5dccf'] },
 }
 
 // ---- painting the parts -------------------------------------------------------------------
@@ -111,6 +113,26 @@ function paintBody(ctx: Ctx, id: AgentId, l: Look): void {
       ctx.fill()
     }
   }
+  if (id === 'paper_trader') {
+    glowing(ctx, 5, l.accent, () => {
+      ctx.font = `900 13px -apple-system, 'Segoe UI', Roboto, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.fillStyle = l.accent
+      ctx.fillText('$', 28, 25.5)
+      ctx.textAlign = 'left'
+    })
+    // a little bow tie at the collar
+    ctx.fillStyle = '#1b2a24'
+    ctx.beginPath()
+    ctx.moveTo(22, 6)
+    ctx.lineTo(28, 9)
+    ctx.lineTo(34, 6)
+    ctx.lineTo(34, 12)
+    ctx.lineTo(28, 9)
+    ctx.lineTo(22, 12)
+    ctx.closePath()
+    ctx.fill()
+  }
   // thruster ring
   rr(ctx, 14, 35, 28, 6, 3)
   ctx.fillStyle = vgrad(ctx, 35, 41, [[0, '#a7aec0'], [1, '#575e70']])
@@ -159,6 +181,24 @@ function paintHead(ctx: Ctx, id: AgentId, l: Look): void {
     ctx.fillStyle = 'rgba(255,255,255,.55)'
     ctx.fillRect(8, 18.4, 48, 1.1)
   }
+  if (id === 'paper_trader') {
+    // a pencil tucked behind the right ear
+    ctx.save()
+    ctx.translate(57, 22)
+    ctx.rotate(0.5)
+    ctx.fillStyle = '#ffd43b'
+    ctx.fillRect(-2, -12, 4, 18)
+    ctx.fillStyle = '#ff8fab'
+    ctx.fillRect(-2, -14, 4, 3)
+    ctx.fillStyle = '#e8c9a0'
+    ctx.beginPath()
+    ctx.moveTo(-2, 6)
+    ctx.lineTo(2, 6)
+    ctx.lineTo(0, 10)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
   if (id !== 'market_scout') {
     // ear pods (the Manager's are headset cups)
     for (const ex of [3.5, 60.5]) {
@@ -193,6 +233,27 @@ function paintHead(ctx: Ctx, id: AgentId, l: Look): void {
       ctx.fillStyle = l.eye
       ctx.fill()
     })
+  }
+  if (id === 'paper_trader') {
+    // a translucent green accountant's visor over the brow
+    ctx.beginPath()
+    ctx.moveTo(1, 20)
+    ctx.quadraticCurveTo(32, 9, 63, 20)
+    ctx.lineTo(60, 27)
+    ctx.quadraticCurveTo(32, 19, 4, 27)
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(34,190,120,.78)'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(10,70,45,.8)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+    ctx.fillStyle = 'rgba(255,255,255,.35)'
+    ctx.beginPath()
+    ctx.moveTo(8, 20)
+    ctx.quadraticCurveTo(32, 13, 56, 20)
+    ctx.quadraticCurveTo(32, 15.5, 8, 21.5)
+    ctx.closePath()
+    ctx.fill()
   }
   // the face screen
   const fy = scout ? 22 : 24

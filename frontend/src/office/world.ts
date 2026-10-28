@@ -1,11 +1,11 @@
-// The office floor plan, in world units. Three rooms far apart, joined by long hallways:
+// The office floor plan, in world units. Four rooms far apart, joined by long hallways:
 //
 //        ┌─ Health Lab ─┐          (uplink)          ┌─ Trading Desk ─┐
 //        └──────┬───────┘              │             └───────┬────────┘
 //               │                      │                     │
-//               └──────────────────────┼─────────────────────┘   ← the main hallway
-//                                      │
-//                              ┌─ Command Room ─┐
+//               └──────────────────────┼─────────────────────┤   ← the main hallway
+//                                      │                     │
+//                              ┌─ Command Room ─┐    ┌─ Paper Desk ─┐
 //
 // Robots move along a small graph of waypoints (doors, corners, junctions), so a route never
 // cuts through a wall. Pure geometry, so routes are testable without a canvas.
@@ -32,7 +32,11 @@ export const ROOMS: Record<AgentId, Rect> = {
   health_coach: { x: 120, y: 150, w: 540, h: 360 },
   market_scout: { x: 1340, y: 150, w: 540, h: 360 },
   manager: { x: 730, y: 880, w: 540, h: 300 },
+  paper_trader: { x: 1340, y: 880, w: 540, h: 300 },
 }
+
+/** Rooms below the main hallway have their door in the back wall, facing north. */
+export const northDoor = (a: AgentId): boolean => a === 'manager' || a === 'paper_trader'
 export const WALL_FACE = 64
 export const RIM = 14 // the thickness of the side and front walls, seen from above
 export const DOOR_W = 84
@@ -56,6 +60,12 @@ export const CORRIDORS: Rect[] = [
     h: ROOMS.manager.y - WALL_FACE - HALL_Y,
   },
   { x: 1000 - HALL_HALF, y: UPLINK.y + UPLINK.r - 10, w: 2 * HALL_HALF, h: HALL_Y - UPLINK.y - UPLINK.r + 10 },
+  {
+    x: roomCenterX('paper_trader') - HALL_HALF,
+    y: HALL_Y,
+    w: 2 * HALL_HALF,
+    h: ROOMS.paper_trader.y - WALL_FACE - HALL_Y,
+  },
 ]
 
 // ---- the waypoint graph -------------------------------------------------------------------
@@ -63,6 +73,7 @@ export const CORRIDORS: Rect[] = [
 const H = roomCenterX('health_coach')
 const S = roomCenterX('market_scout')
 const M = roomCenterX('manager')
+const P = roomCenterX('paper_trader') // under the Trading Desk, on the same corridor
 
 export const NODES: Record<string, Point> = {
   'health_coach:in': { x: H, y: ROOMS.health_coach.y + ROOMS.health_coach.h - 40 },
@@ -74,6 +85,8 @@ export const NODES: Record<string, Point> = {
   'market_scout:in': { x: S, y: ROOMS.market_scout.y + ROOMS.market_scout.h - 40 },
   'manager:door': { x: M, y: ROOMS.manager.y - WALL_FACE / 2 },
   'manager:in': { x: M, y: ROOMS.manager.y + 50 },
+  'paper_trader:door': { x: P, y: ROOMS.paper_trader.y - WALL_FACE / 2 },
+  'paper_trader:in': { x: P, y: ROOMS.paper_trader.y + 50 },
   'uplink:gate': { x: M, y: UPLINK.y + UPLINK.r + 10 },
   exit: EXIT,
 }
@@ -87,6 +100,8 @@ const EDGES: [string, string][] = [
   ['market_scout:door', 'market_scout:in'],
   ['junction', 'manager:door'],
   ['manager:door', 'manager:in'],
+  ['market_scout:corner', 'paper_trader:door'],
+  ['paper_trader:door', 'paper_trader:in'],
   ['junction', 'uplink:gate'],
   ['uplink:gate', 'exit'],
 ]
@@ -207,7 +222,7 @@ function doorway(r: AgentId, p: Point): boolean {
   const room = ROOMS[r]
   const cx = roomCenterX(r)
   if (Math.abs(p.x - cx) > DOOR_W / 2) return false
-  return r === 'manager'
+  return northDoor(r)
     ? p.y >= room.y - WALL_FACE - 1 && p.y <= room.y + 1
     : p.y >= room.y + room.h - 1 && p.y <= room.y + room.h + RIM + 30
 }

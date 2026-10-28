@@ -4,7 +4,8 @@ A cloud-hosted team of three AI agents that I run from Telegram, shown live as r
 
 - **Manager** reads my message and hands it to the right specialist.
 - **Health Coach** is a Whoop/Garmin-style running coach working from my Apple Watch and Strava data: recovery, strain, sleep, training load, race-time predictions and an adaptive plan.
-- **Market Scout** watches brand-new crypto coins and messages me only when one passes rug tests and is doing huge volume. It is read-only and paper-trades every alert to see whether the calls would have made money.
+- **Market Scout** watches brand-new crypto coins and messages me only when one passes rug tests and is doing huge volume. It is read-only.
+- **Paper Trader** (a robot, not a model) paper-trades every alert three ways, so the stats page shows which way of selling would have made money.
 
 ![The office: the Manager flies down the hallway to the Health Lab, the Coach answers, the Manager carries it to the uplink](docs/media/office.gif)
 
@@ -69,11 +70,23 @@ Every 10 minutes the scanner screens coins at most 48 hours old on Solana, Base 
 - **Market screen:** $1M+ in 24 h volume, 500+ distinct buyers, real liquidity, small average trades (a wash-trading guard), still trading and not dumping.
 - **Rug tests:** mint and freeze authority revoked, not a honeypot, low taxes, liquidity locked or burned, and no whale concentration. A test that can't get its data fails.
 
-Only a coin that passes both gets an alert, at most once per coin and three a day. Each alert opens a pretend $10 paper trade, sold at 2×, at −50%, if liquidity vanishes, or after 3 days, with 2% fees each way. The stats page shows every alert next to what happened. It has no wallet, no keys and no trading. Details: [docs/scout.md](docs/scout.md).
+Only a coin that passes both gets an alert, at most once per coin and three a day. It has no wallet, no keys and no trading. Details: [docs/scout.md](docs/scout.md).
+
+**Paper trading, three ways.** Each alert buys a pretend $10 with each of three strategies, which only differ in how they sell, with 2% fees each way:
+
+| # | Strategy | Sells |
+| --- | --- | --- |
+| 1 | Quick 2× | everything at 2×; stop at −50%; after 3 days |
+| 2 | Runner | once it's hit 2×, everything when it drops 30% from its peak; stop at −50%; after 7 days |
+| 3 | Moon bag | half at 2× (stake back), a quarter at 5×, the last quarter rides for 10×+ with a 50% trailing stop; up to 14 days |
+
+New-coin returns are extremely skewed (most fall 90%+ from their peak, a few run far past 2×), so selling everything at 2× caps the winners that pay for the losers. The stats page tracks all three side by side on the same alerts.
 
 ## Stats
 
 ![Stats page: 30 days of recovery, training load, and the Scout's alerts vs. outcomes](docs/media/stats.png)
+
+The stats page also has a card per paper strategy (its rules, closed P/L, win rate, and what the open trades would make if sold now), a running-total chart of the three, and each alert's result under each strategy.
 
 ## Costs
 

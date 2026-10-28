@@ -1,8 +1,9 @@
 """GET /stats: the numbers behind the stats page.
 
 The last 30 days of recovery, strain and training load, and every Market Scout alert with how
-its paper trade played out ("what the Scout flagged vs. what happened"). Health numbers are
-private, so this needs OFFICE_VIEW_KEY in the ``X-Office-Key`` header, like the live office.
+each paper-trading strategy played out on it ("what the Scout flagged vs. what happened").
+Health numbers are private, so this needs OFFICE_VIEW_KEY in the ``X-Office-Key`` header,
+like the live office.
 """
 
 import hmac
@@ -19,6 +20,7 @@ from app.config import get_settings
 from app.db.models import DailyScore, PaperTrade, ScoutAlert, ScoutScan
 from app.db.session import get_session
 from app.scout import paper_book
+from app.scout.paper import STRATEGIES
 
 router = APIRouter()
 DAYS = 30
@@ -52,15 +54,29 @@ def health(session: Session, end: date) -> list[dict]:
     return out
 
 
+def _trade(t: PaperTrade) -> dict:
+    price = t.exit_price if t.closed_at else t.last_price
+    return {
+        "status": "closed" if t.closed_at else "open",
+        "exit_reason": t.exit_reason,
+        "now_x": None if not price or not t.entry_price else round(price / t.entry_price, 2),
+        "sold_pct": round(100 * (1 - t.held)),
+        "pnl_usd": t.pnl_usd if t.closed_at else None,
+        "pnl_now_usd": None if t.closed_at else round(paper_book.as_trade(t).open_pnl, 2),
+    }
+
+
 def scout(session: Session, now: datetime) -> dict:
-    trades = {t.alert_id: t for t in session.scalars(select(PaperTrade))}
+    trades: dict[int, dict[str, PaperTrade]] = {}
+    for t in session.scalars(select(PaperTrade)):
+        trades.setdefault(t.alert_id, {})[t.strategy] = t
     alerts = session.scalars(select(ScoutAlert).order_by(ScoutAlert.alerted_at.desc())).all()
     since = now - timedelta(days=DAYS)
     scans = session.scalar(select(func.count()).where(ScoutScan.ran_at >= since)) or 0
     rows = []
     for a in alerts:
-        t = trades.get(a.id)
-        price = None if t is None else (t.exit_price if t.closed_at else t.last_price)
+        mine = trades.get(a.id, {})
+        peaks = [t.peak_price / t.entry_price for t in mine.values() if t.peak_price]
         rows.append(
             {
                 "symbol": a.symbol,
@@ -68,16 +84,32 @@ def scout(session: Session, now: datetime) -> dict:
                 "alerted_at": a.alerted_at.isoformat(),
                 "fdv_usd": a.fdv_usd,
                 "volume_h24_usd": a.volume_h24_usd,
-                "status": None if t is None else ("closed" if t.closed_at else "open"),
-                "exit_reason": t.exit_reason if t else None,
-                "now_x": None if not t or not price else round(price / t.entry_price, 2),
-                "peak_x": None
-                if not t or not t.peak_price
-                else round(t.peak_price / t.entry_price, 2),
-                "pnl_usd": t.pnl_usd if t and t.closed_at else None,
+                "peak_x": round(max(peaks), 2) if peaks else None,
+                "trades": {k: _trade(t) for k, t in mine.items()},
             }
         )
-    return {"scans_30d": scans, "alerts": rows, "paper": paper_book.book(session)["summary"]}
+    totals = paper_book.summaries(session)
+    strategies = []
+    for s in STRATEGIES:
+        done = sorted(
+            (t for m in trades.values() if (t := m.get(s.key)) and t.closed_at),
+            key=lambda t: t.closed_at,
+        )
+        curve, running = [], 0.0
+        for t in done:
+            running += t.pnl_usd or 0
+            curve.append({"at": t.closed_at.isoformat(), "pnl_usd": round(running, 2)})
+        strategies.append(
+            {
+                "key": s.key,
+                "name": s.name,
+                "blurb": s.blurb,
+                "summary": totals[s.key],
+                "curve": curve,
+            }
+        )
+    # "paper" is Quick 2×'s summary, for a page loaded before strategies existed.
+    return {"scans_30d": scans, "alerts": rows, "strategies": strategies, "paper": totals["quick"]}
 
 
 @router.get("/stats")
