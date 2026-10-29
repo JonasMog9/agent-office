@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 
 from app.scout.sources import MarketData, history_from_gecko, pools_from_gecko
 
@@ -97,9 +98,51 @@ def test_price_history_pages_back_to_the_alert():
             )
         return httpx.Response(200, json=ohlcv([T, 0, 0, 0, 1.5, 1], [T - 900, 0, 0, 0, 1.1, 1]))
 
-    src = MarketData(httpx.Client(transport=httpx.MockTransport(handler)))
+    src = MarketData(httpx.Client(transport=httpx.MockTransport(handler)), sleep=lambda s: None)
     since = datetime.fromtimestamp(T, UTC)  # the alert
     got = src.price_history("solana", "POOL", since)
     assert [p for _, p in got] == [1.5, 2.0, 3.0]  # the candle that closed at the alert is out
     assert calls[0]["aggregate"] == "15" and calls[1]["before_timestamp"] == str(T + 900)
     assert len(calls) == 2  # the second page reached back past the alert
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.t = 0.0
+        self.slept: list[float] = []
+
+    def sleep(self, s: float) -> None:
+        self.slept.append(round(s, 2))
+        self.t += s
+
+    def now(self) -> float:
+        return self.t
+
+
+def test_geckoterminal_calls_are_spaced_and_a_429_is_retried():
+    replies = [
+        httpx.Response(200, json={"data": []}),
+        httpx.Response(429, headers={"Retry-After": "7"}),
+        httpx.Response(200, json={"data": []}),
+    ]
+    clock = FakeClock()
+    src = MarketData(
+        httpx.Client(transport=httpx.MockTransport(lambda r: replies.pop(0))),
+        sleep=clock.sleep,
+        clock=clock.now,
+    )
+    assert src.pool_prices("solana", ["A"]) == {}
+    assert src.pool_prices("solana", ["B"]) == {}  # 429, waits 7 s, then succeeds
+    assert clock.slept == [2.5, 7.0]  # the gap, then Retry-After (which covers the gap)
+
+
+def test_a_429_that_keeps_coming_is_raised():
+    clock = FakeClock()
+    src = MarketData(
+        httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(429))),
+        sleep=clock.sleep,
+        clock=clock.now,
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        src.pool_prices("solana", ["A"])
+    assert clock.slept == [15.0, 30.0]  # backs off without a Retry-After, then gives up

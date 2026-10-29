@@ -8,9 +8,12 @@ for rug tests. Free public APIs, no keys, nothing that can trade (CLAUDE.md).
     GoPlus         /api/v1/token_security/{chain_id}   EVM contract and holder report
     RugCheck       /v1/tokens/{mint}/report            Solana token report
 
-GeckoTerminal allows about 30 calls a minute; a scan makes 3 per chain.
+GeckoTerminal allows about 30 calls a minute; a scan makes 3 per chain plus the paper-trade
+prices, so calls are spaced out and a 429 is retried (``MarketData._get``).
 """
 
+import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -115,19 +118,46 @@ def history_from_gecko(payload: dict) -> list[tuple[datetime, float]]:
     return sorted(out)
 
 
+GECKO_GAP = 2.5  # seconds between GeckoTerminal calls: 24 a minute, under its ~30 limit
+RETRIES = 2  # after a 429 Too Many Requests
+
+
 class MarketData:
-    def __init__(self, http: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        http: httpx.Client | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.http = http or httpx.Client(
             timeout=20, headers={"Accept": "application/json", "User-Agent": "agent-office-scout"}
         )
+        self.sleep, self.clock = sleep, clock
+        self._last_gecko: float | None = None
 
     def close(self) -> None:
         self.http.close()
 
     def _get(self, url: str, **params: str) -> dict:
-        r = self.http.get(url, params=params or None)
-        r.raise_for_status()
-        return r.json()
+        """GET JSON. GeckoTerminal calls are spaced GECKO_GAP apart (a scan makes a burst of
+        them, which it answered with 429s), and a 429 waits for Retry-After and tries again."""
+        for attempt in range(RETRIES + 1):
+            if url.startswith(GECKO):
+                if self._last_gecko is not None:
+                    wait = GECKO_GAP - (self.clock() - self._last_gecko)
+                    if wait > 0:
+                        self.sleep(wait)
+                self._last_gecko = self.clock()
+            r = self.http.get(url, params=params or None)
+            if r.status_code == 429 and attempt < RETRIES:
+                retry_after = _f(r.headers.get("Retry-After"))
+                self.sleep(
+                    min(60.0, retry_after if retry_after is not None else 15.0 * (attempt + 1))
+                )
+                continue
+            r.raise_for_status()
+            return r.json()
+        raise AssertionError("unreachable")
 
     def scan_pools(self, chain: str) -> list[Pool]:
         """Pools worth screening on one chain: trending now, plus the day's top volume."""
