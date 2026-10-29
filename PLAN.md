@@ -247,17 +247,43 @@ Problems hit while building this, how they were found, and what fixed them, newe
 | 2026-10-08 | The data source needed a paid app | The plan relied on Health Auto Export's paid tier for automatic uploads. | Replaced it with a free iOS Shortcut (daily wellness data) plus the Strava API (workouts). The Shortcut runs when an app you open daily (Gmail) opens, because iOS only allows Health reads while the phone is unlocked, and resends 3 days so missed days fill themselves in. | Constraints drive design: a free path existed but needed idempotent ingestion to be reliable. |
 | 2026-10-08 | Deploying a monorepo on Railway | The backend lives in `backend/`, but Railway builds from the repo root, and Railway's docs and forum answers disagreed on whether the config-file path is relative to the root directory. | Set the service's root directory and the config-file path; wrote it up step by step in `docs/railway-setup.md`. | Write down the setup the moment it works. |
 
-## Demo video script (about 75 seconds)
+## Demo video script (about 90 seconds)
 
-Record a split screen: your phone (screen recording) on the left and the office in the browser on the right, in **Follow** view (or Overview for the wide shots).
+**Layout.** The website on the left three quarters of the screen, Telegram Desktop on the right quarter, and a small round face-cam in the top-left corner of the website (the office's top-left is empty blueprint, so it covers nothing). Talk over it; turn on auto-captions when editing, since most people watch muted.
 
-1. **0–5s, hook.** The office is quiet; the robots are doing chores (the Coach on the treadmill, the Scout in the bat-signal). Caption: "My AI team runs in the cloud. I manage it from Telegram."
-2. **5–25s, the ask.** You text "How ready am I to train today?". The Manager thinks, flies out of the Command Room and down the long hallway to the Health Lab.
-3. **25–40s, the work.** The Coach thinks and runs its tools (the chips show "Checking recovery", "Checking sleep"), then answers in a bubble. The Manager carries the answer to the uplink, which beams it out, and your phone buzzes with the recovery score and today's workout.
-4. **40–55s, the second agent.** A Scout alert: the Scout spots a potential runner, the Manager picks it up and your phone gets "🚀 Potential runner…" with the rug tests it passed. Then ask "how are my paper trades?".
-5. **55–75s, under the hood.** Show the stats page (30-day recovery, the Scout's alerts vs. what happened), the architecture diagram in the README, and the repo. Caption the stack: "FastAPI · Postgres · Claude API · Telegram · Phaser · Railway".
+**Before recording**
 
-Tips: record with real data, keep captions on screen (most people watch muted), and end on the repo URL. A real Scout alert is rare by design; for the take, use one that arrived during the month (its Telegram message), or record the office demo's alert scenario and say it's the demo.
+- Full-screen the browser (Ctrl+Cmd+F) so the `?key=` link never shows. Same for the stats page.
+- Telegram Desktop with large text, the bot chat open and old messages scrolled away. Copy a Solana address from a past alert for scene 3.
+- Office in **Overview**; switch to **Follow** for the close-ups.
+- Face-cam: OBS (free) with the webcam as a circle in the top-left, or record the screen with QuickTime and the camera with Photo Booth and overlay them in iMovie (picture-in-picture).
+- Record each scene as its own clip and speed up the waits in editing: Claude takes 10–30 s to answer.
+- Do a dry run first. Speak slowly; one breath per line.
+
+| # | Time | On screen | Say |
+| --- | --- | --- | --- |
+| 1 | 0–8s | Office in Overview, robots doing chores | "I built a team of AI agents that lives in the cloud, and I manage it from Telegram. Every message I send plays out live in this office." |
+| 2 | 8–32s | Type `How ready am I to train today?` → the Manager flies to the Health Lab (Follow), the Coach's tool chips, the answer reaches Telegram | "I'll ask how ready I am to train. The Manager reads it and flies over to the Health Coach. The Coach pulls my Apple Watch and Strava data: heart-rate variability, sleep, training load. Every number is computed in plain Python; the AI only explains it. And there's the answer on my phone." |
+| 3 | 32–50s | Type `check <address>` → the Manager visits the Trading Desk, "Running rug tests", the result in Telegram | "This is the Market Scout. Every ten minutes it scans brand-new crypto coins, and it only alerts me when one passes every rug test and is doing huge volume. Here I'm asking it to check a coin: it runs each safety test and tells me what passed." |
+| 4 | 50–68s | Type `Which paper strategy is winning?` → the Paper Trader flies up from the Paper Desk to the Scout, the answer goes out | "It never touches real money. Every alert gets paper-traded three ways: sell at 2×, a trailing stop, or a moon bag that sells in steps. The Paper Trader brings the Scout the books, so I can see which one actually wins." |
+| 5 | 68–82s | `/stats`: recovery chart, the three strategy cards, the running-total chart, the alert table | "Everything is tracked on a stats page: thirty days of recovery, and how each strategy did on every alert. The first rule, sell at 2×, lost money, so now I'm testing whether letting winners run does better." |
+| 6 | 82–90s | GitHub repo, or the office in Overview | "It's Python, FastAPI, Postgres, the Claude API and Phaser, running on Railway. The code's on my GitHub; link below." |
+
+That's about 220 words, roughly 90 seconds at a relaxed pace. If you run long, cut scene 3's middle sentence first. If a scene's Telegram answer comes out different, just describe what's on screen ("and there it is"); don't read the bubble out.
+
+**LinkedIn post to go with it**
+
+> I built a team of AI agents that lives in the cloud, and I manage it from Telegram.
+>
+> 🏃 A Health Coach reads my Apple Watch and Strava data: recovery, training load, race predictions.
+> 🦇 A Market Scout watches brand-new crypto coins and only pings me when one passes every rug test and does huge volume.
+> 📄 A Paper Trader tests 3 selling strategies on every alert, with no real money, to see which one actually works.
+>
+> Every message plays out live in a 2D office: you can watch the Manager fly down the hallway to ask the right specialist.
+>
+> Built with Python, FastAPI, Postgres, the Claude API, Phaser and Railway. All the math is plain Python; the AI only explains it.
+>
+> Code: github.com/JonasMog9/agent-office
 
 ## Costs, timeline and resume framing
 
