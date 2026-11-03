@@ -6,6 +6,7 @@ The agent is recognised by its system prompt (``team.MANAGER_SYSTEM`` etc.), so 
 the app needs to know it's being evaluated.
 """
 
+import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -60,6 +61,7 @@ class Call:
 class Recording:
     calls: list[Call] = field(default_factory=list)
     tool_results: dict[str, list[str]] = field(default_factory=dict)  # by the agent that asked
+    instructions: dict[str, list[str]] = field(default_factory=dict)  # system + tool defs
 
     def results_for(self, agents: tuple[str, ...]) -> list[str]:
         return [r for a in agents for r in self.tool_results.get(a, [])]
@@ -121,6 +123,10 @@ class RecordingClient:
                         seen = self.recording.tool_results.setdefault(agent, [])
                         if block["content"] not in seen:
                             seen.append(block["content"])
+        given = self.recording.instructions.setdefault(agent, [])
+        for text in (kwargs.get("system", ""), json.dumps(kwargs.get("tools", []))):
+            if text and text not in given:
+                given.append(text)
         start = self.clock()
         response = api.create(**kwargs)
         usage = response.usage if hasattr(response, "usage") else None

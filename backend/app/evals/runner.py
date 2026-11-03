@@ -56,6 +56,7 @@ def run_case(client: Any, case: Case, models: dict[str, str], market: Any) -> di
         specialists=[SPECIALIST[t] for t in r.tools_by("manager") if t in SPECIALIST],
         tools=r.tools_by("health_coach") + r.tools_by("market_scout"),
         tool_results=r.results_for(("health_coach", "market_scout")),
+        instructions=[t for texts in r.instructions.values() for t in texts],
         error=error,
     )
     return {
