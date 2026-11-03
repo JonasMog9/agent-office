@@ -38,12 +38,13 @@ def run_case(client: Any, case: Case, models: dict[str, str], market: Any) -> di
     rec = RecordingClient(client, models)
     start = time.monotonic()
     answer, error = "", None
+    bus = EventBus()
     try:
         result = ask_manager(
             rec,
             SessionLocal,
             case.question,
-            EventBus(),
+            bus,
             scout_rules=Rules(),
             scout_src_factory=lambda: market,
         )
@@ -66,6 +67,7 @@ def run_case(client: Any, case: Case, models: dict[str, str], market: Any) -> di
         "specialists": trace.specialists,
         "tools": trace.tools,
         "seconds": round(time.monotonic() - start, 2),
+        "rewrites": sum(1 for e in bus.recent() if e.target == "fact_check"),
         **{k: round(v, 6) if isinstance(v, float) else v for k, v in r.totals().items()},
         **grade(case, trace),
     }
@@ -108,6 +110,7 @@ def summarise(results: list[dict]) -> dict:
         "median_seconds": round(statistics.median(secs), 1),
         "p90_seconds": round(secs[min(n - 1, int(0.9 * n))], 1),
         "mean_output_tokens": round(sum(r.get("output_tokens", 0) for r in results) / n),
+        "guard_rewrites": sum(r.get("rewrites", 0) for r in results),
     }
 
 
@@ -121,8 +124,8 @@ def report(runs: list[dict], when: str) -> str:
         "(`app/evals/grade.py`). See docs/evals.md.",
         "",
         "| Setup | Models (manager / coach / scout) | Passed | Route | Tools | Grounded | "
-        "Disclaimer | Cost per answer | Median time | p90 time |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "Disclaimer | Guard rewrites | Cost per answer | Median time | p90 time |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for run in runs:
         s, m, c = run["summary"], run["models"], run["summary"].get("check_pass_rate_pct", {})
@@ -131,7 +134,8 @@ def report(runs: list[dict], when: str) -> str:
             f"| {run['setup']} | {short['manager']} / {short['health_coach']} / "
             f"{short['market_scout']} | {s['passed']}/{s['cases']} ({s['pass_rate_pct']}%) | "
             f"{c.get('route', '–')}% | {c.get('tools', '–')}% | {c.get('grounded', '–')}% | "
-            f"{c.get('disclaimer', '–')}% | {s['cost_per_answer_usd'] * 100:.2f}¢ | "
+            f"{c.get('disclaimer', '–')}% | {s.get('guard_rewrites', 0)} | "
+            f"{s['cost_per_answer_usd'] * 100:.2f}¢ | "
             f"{s['median_seconds']} s | {s['p90_seconds']} s |"
         )
     for run in runs:

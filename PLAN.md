@@ -222,10 +222,12 @@ Prove the agents work, with numbers, and measure what the cheaper model would co
 
 - [x] An eval harness (`app/evals/`): a made-up world built through the real pipeline, about 50 questions, automatic grading (route, tools, every number backed by a tool result, disclaimer), and per-call tokens, cost and latency. Runs from GitHub Actions (**Agent evals → Run workflow**). See docs/evals.md.
 - [x] First run: production (Haiku + Sonnet) vs. all-Haiku, with the results in the README. After fixing the grader: production 48/52, all-Haiku 51/52 at 0.11¢ vs 1.52¢ per answer.
-- [ ] Hallucination guard in production: check each answer's numbers against its tool results before it's sent, and retry or flag when one isn't backed.
+- [x] Hallucination guard in production (`agents/grounding.py`, used by `agents/loop.py` for every agent): an answer with a number no tool result, instruction or question backs up goes back to the model once for a rewrite; if a number still can't be traced, the answer says "Couldn't verify: …" instead of passing it off as data. The office shows "Double-checking the numbers". The eval report counts the rewrites.
 - [ ] Cost and latency on the stats page, from every real request.
 
 Done when the eval report is in the README and the guard runs on every answer.
+
+Also from the first runs: "show me my last 7 days" went to both specialists. The Manager's instructions now send questions about the owner with no topic named to the Health Coach only, with two more eval cases for it.
 
 ## Challenges log
 

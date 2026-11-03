@@ -12,7 +12,7 @@ pytestmark = pytest.mark.usefixtures("db")
 
 def test_the_cases_are_well_formed():
     ids = [c.id for c in CASES]
-    assert len(ids) == len(set(ids)) >= 50
+    assert len(ids) == len(set(ids)) >= 54
     assert {c.route for c in CASES} == {"health_coach", "market_scout", "none", "both"}
     assert [c.id for c in CASES if c.mutates] == ["new-plan"]
 
@@ -44,6 +44,8 @@ def test_a_case_runs_through_the_real_manager_and_is_graded():
             MANAGER_MODEL: [
                 reply(("tool", "ask_market_scout", {"question": "How are my paper trades?"})),
                 reply(("text", "Runner leads with +$9.99 so far. Not financial advice.")),
+                # the guard asks for a rewrite; this one still invents the number
+                reply(("text", "Runner leads with +$9.99. Not financial advice.")),
             ],
             SCOUT_MODEL: [
                 reply(("tool", "paper_trades", {})),
@@ -55,8 +57,13 @@ def test_a_case_runs_through_the_real_manager_and_is_graded():
     r = runner.run_case(claude, case, runner.SETUPS["production"], market)
     assert r["specialists"] == ["market_scout"] and r["tools"] == ["paper_trades"]
     assert r["checks"]["route"] and r["checks"]["tools"] and r["checks"]["disclaimer"]
-    assert r["checks"]["grounded"] is False and r["ungrounded"] == ["$9.99"]  # made up
-    assert r["calls"] == 4
+    assert r["checks"]["grounded"] is False and r["ungrounded"] == [
+        "$9.99",
+        "$9.99",
+    ]  # made up, and in the note
+    assert r["calls"] == 5  # 2 scout, 3 manager (one rewrite)
+    assert r["rewrites"] == 1
+    assert "(Couldn't verify: $9.99.)" in r["answer"]
 
 
 def test_summary_and_report():
@@ -103,6 +110,7 @@ def test_summary_and_report():
         "2026-11-03",
     )
     assert "| production | haiku 5.5 / sonnet 5.5 / sonnet 5.5 | 1/2 (50.0%) |" in md
+    assert "| Guard rewrites |" in md and s["guard_rewrites"] == 0
     assert "**b** (grounded)" in md and "Unbacked numbers: 81%." in md
     assert COACH_MODEL  # the production setup mirrors team.py's models
     assert runner.SETUPS["production"] == {

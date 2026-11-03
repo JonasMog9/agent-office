@@ -86,14 +86,22 @@ New-coin returns are extremely skewed (most fall 90%+ from their peak, a few run
 
 About 50 questions the owner might text, run through the real agents against a made-up but realistic world, and graded automatically: did the Manager ask the right specialist, did it call the right tools, is every number in the answer backed by a tool result, and does every crypto answer end with the disclaimer. The same questions run with Sonnet answering (production) and with Haiku everywhere, with cost per answer and response times, so the model choice is measured rather than guessed. How it works and how to run it: [docs/evals.md](docs/evals.md).
 
-Latest run (2026-11-03, 52 questions each):
+Latest run (2026-11-03, 54 questions each):
 
-| Setup | Passed | Right specialist | Right tools | Numbers backed by tools | Disclaimer | Cost per answer | Median time |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Production: Haiku 5.5 routes, Sonnet 5.5 answers | 48/52 (92%) | 98% | 100% | 94% | 100% | 1.52¢ | 7.4 s |
-| All Haiku 5.5 | 51/52 (98%) | 98% | 100% | 100% | 100% | 0.11¢ | 6.2 s |
+| Setup | Passed | Right specialist | Right tools | Numbers backed by tools | Disclaimer | Guard rewrites | Cost per answer | Median time |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Production: Haiku 5.5 routes, Sonnet 5.5 answers | 54/54 | 100% | 100% | 100% | 100% | 2 | 1.55¢ | 7.3 s |
+| All Haiku 5.5 | 54/54 | 100% | 100% | 100% | 100% | 0 | 0.11¢ | 6.3 s |
 
-The first run scored 36/52 and 40/52, but reading the failures showed the grader was wrong, not the agents (numbers from tool field names and descriptions, date ranges); fixing it is in the challenges log. Both setups still send "show me my last 7 days" to both specialists. On this run all-Haiku did as well as Sonnet at a fourteenth of the cost; one run is noisy, so that's a lead to confirm, not a decision yet.
+How it got there, run by run:
+
+| Run | Production | All Haiku | What changed |
+| --- | --- | --- | --- |
+| 1 | 36/52 | 40/52 | First run |
+| 2 | 48/52 | 51/52 | Fixed the grader: numbers from tool field names and descriptions, date ranges |
+| 3 | 54/54 | 54/54 | Number guard in the live agents; "show me my last 7 days" routed to the Coach only; 2 new cases |
+
+The guard is the same number check, run live: an answer with a number no tool backs up goes back for one rewrite, and in run 3 it caught and fixed two such answers before they'd have been sent. All-Haiku matched Sonnet at a fourteenth of the cost on every run so far; that's a lead worth acting on once a few more runs agree.
 
 ## Stats
 

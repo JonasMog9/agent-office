@@ -6,7 +6,7 @@ import pytest
 from app.agents import coach_tools
 from app.agents.events import EventBus
 from app.agents.loop import MAX_TURNS, Tool, run_agent
-from app.agents.team import COACH_MODEL, MANAGER_MODEL, ask_manager
+from app.agents.team import COACH_MODEL, MANAGER_MODEL, ask_health_coach, ask_manager
 from app.db.models import DailyMetric, DailyScore
 from app.db.session import SessionLocal
 from tests.agents.fake_claude import FakeClaude, reply
@@ -225,3 +225,58 @@ def test_tool_numbers_come_rounded() -> None:
         "x": [372, 1.23],
         "n": 3,
     }
+
+
+# --- the grounding guard -------------------------------------------------------------------
+
+
+@pytest.mark.usefixtures("db", "seeded")
+def test_an_invented_number_is_sent_back_and_the_rewrite_is_used() -> None:
+    claude = FakeClaude(
+        {
+            COACH_MODEL: [
+                reply(("tool", "get_recovery", {"date": "today"})),
+                reply(("text", "77%, green. Your VO2max is 58.")),  # 58: no tool said so
+                reply(("text", "77%, green. I don't have a VO2max reading.")),
+            ],
+        }
+    )
+    bus = EventBus()
+    result = ask_health_coach(claude, SessionLocal, "How recovered am I?", bus, "g1")
+    assert result.text == "77%, green. I don't have a VO2max reading."
+    assert (result.fixes, result.unverified) == (1, ())
+    fix = claude.requests[-1]["messages"][-1]["content"]
+    assert "58" in fix and "Rewrite the whole answer" in fix
+    assert ("health_coach", "working", "fact_check") in [
+        (e.agent, e.status, e.target) for e in bus.recent("g1")
+    ]
+
+
+@pytest.mark.usefixtures("db", "seeded")
+def test_a_number_still_unbacked_after_the_rewrite_is_flagged_not_passed_off() -> None:
+    claude = FakeClaude(
+        {
+            COACH_MODEL: [
+                reply(("tool", "get_recovery", {"date": "today"})),
+                reply(("text", "77%, and your VO2max is 58.")),
+                reply(("text", "77%; VO2max 58.")),
+            ],
+        }
+    )
+    result = ask_health_coach(claude, SessionLocal, "How recovered am I?", EventBus(), "g2")
+    assert result.text == "77%; VO2max 58.\n\n(Couldn't verify: 58.)"
+    assert result.unverified == ("58",) and result.fixes == 1
+
+
+@pytest.mark.usefixtures("db", "seeded")
+def test_grounded_answers_go_straight_through() -> None:
+    claude = FakeClaude(
+        {
+            COACH_MODEL: [
+                reply(("tool", "get_recovery", {"date": "today"})),
+                reply(("text", "77%, green: HRV 70 vs your usual 53.")),
+            ],
+        }
+    )
+    result = ask_health_coach(claude, SessionLocal, "How recovered am I?", EventBus(), "g3")
+    assert result.fixes == 0 and len(claude.requests) == 2
