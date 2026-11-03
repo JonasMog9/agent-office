@@ -10,7 +10,7 @@ Agent Office: a cloud-hosted team of three AI agents (Manager, Health Coach, Mar
 
 | Layer | Choice |
 | --- | --- |
-| Agents | Anthropic Python SDK with tool use: our own small agent loop (`agents/loop.py`) that emits an event per step. Haiku 5.5 for the Manager, Sonnet 5.5 for the Health Coach and Market Scout |
+| Agents | Anthropic Python SDK with tool use: our own small agent loop (`agents/loop.py`) that emits an event per step. Haiku 5.5 for all three (chosen by the evals, `app/evals/`: it matched Sonnet 5.5 at a fourteenth of the cost) |
 | API | FastAPI (async, WebSockets) on Python 3.12 |
 | Database | Postgres via SQLAlchemy 2.x, migrations with Alembic |
 | Chat | Telegram Bot API over httpx (`telegram/bot.py`), webhook route on the FastAPI app |

@@ -41,13 +41,13 @@ def test_a_case_runs_through_the_real_manager_and_is_graded():
         market = world.build(s)
     claude = FakeClaude(
         {
-            MANAGER_MODEL: [
+            "manager": [
                 reply(("tool", "ask_market_scout", {"question": "How are my paper trades?"})),
                 reply(("text", "Runner leads with +$9.99 so far. Not financial advice.")),
                 # the guard asks for a rewrite; this one still invents the number
                 reply(("text", "Runner leads with +$9.99. Not financial advice.")),
             ],
-            SCOUT_MODEL: [
+            "market_scout": [
                 reply(("tool", "paper_trades", {})),
                 reply(("text", "Runner leads. Not financial advice.")),
             ],
@@ -109,7 +109,7 @@ def test_summary_and_report():
         ],
         "2026-11-03",
     )
-    assert "| production | haiku 5.5 / sonnet 5.5 / sonnet 5.5 | 1/2 (50.0%) |" in md
+    assert "| production | haiku 5.5 / haiku 5.5 / haiku 5.5 | 1/2 (50.0%) |" in md
     assert "| Guard rewrites |" in md and s["guard_rewrites"] == 0
     assert "**b** (grounded)" in md and "Unbacked numbers: 81%." in md
     assert COACH_MODEL  # the production setup mirrors team.py's models

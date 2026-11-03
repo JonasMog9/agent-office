@@ -6,7 +6,7 @@ import pytest
 from app.agents import coach_tools
 from app.agents.events import EventBus
 from app.agents.loop import MAX_TURNS, Tool, run_agent
-from app.agents.team import COACH_MODEL, MANAGER_MODEL, ask_health_coach, ask_manager
+from app.agents.team import COACH_MODEL, ask_health_coach, ask_manager
 from app.db.models import DailyMetric, DailyScore
 from app.db.session import SessionLocal
 from tests.agents.fake_claude import FakeClaude, reply
@@ -53,11 +53,11 @@ def seeded(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_question_flows_manager_to_coach_to_tools_and_back() -> None:
     claude = FakeClaude(
         {
-            MANAGER_MODEL: [
+            "manager": [
                 reply(("tool", "ask_health_coach", {"question": "How recovered am I today?"})),
                 reply(("text", "You're at 77% recovery, green.")),
             ],
-            COACH_MODEL: [
+            "health_coach": [
                 reply(("tool", "get_recovery", {"date": "today"})),
                 reply(("text", "77%, green: HRV 70 vs your usual 53.")),
             ],
@@ -69,12 +69,12 @@ def test_question_flows_manager_to_coach_to_tools_and_back() -> None:
     assert result.text == "You're at 77% recovery, green."
     assert result.tool_calls == ["ask_health_coach"]
     # The coach saw real stored numbers, not anything the model made up.
-    [tool_result] = claude.tool_results(COACH_MODEL)
+    [tool_result] = claude.tool_results("health_coach")
     payload = json.loads(tool_result["content"])
     assert payload["recovery"] == 77 and payload["label"] == "green"
     assert payload["breakdown"]["components"][0]["baseline"] == 53.0
     # The manager relays the coach's answer.
-    [relay] = claude.tool_results(MANAGER_MODEL)
+    [relay] = claude.tool_results("manager")
     assert json.loads(relay["content"])["answer"] == "77%, green: HRV 70 vs your usual 53."
 
     events = [(e.agent, e.status, e.target) for e in bus.recent("r1")]
@@ -100,18 +100,19 @@ def test_question_flows_manager_to_coach_to_tools_and_back() -> None:
 def test_models_and_request_settings() -> None:
     claude = FakeClaude(
         {
-            MANAGER_MODEL: [
+            "manager": [
                 reply(("tool", "ask_health_coach", {"question": "q"})),
                 reply(("text", "a")),
             ],
-            COACH_MODEL: [reply(("text", "a"))],
+            "health_coach": [reply(("text", "a"))],
         }
     )
     ask_manager(claude, SessionLocal, "q", EventBus())
     manager, coach, _ = claude.requests
     assert manager["model"] == "claude-haiku-5-5" and not manager["beta"]
-    assert coach["model"] == "claude-sonnet-5-5" and coach["beta"]
-    assert coach["fallbacks"] == "default" and coach["betas"] == ["server-side-fallback-2026-07-01"]
+    # Haiku 5.5 for every agent (chosen by the evals); Haiku has no refusal-fallback beta
+    assert coach["model"] == "claude-haiku-5-5" and not coach["beta"]
+    assert "fallbacks" not in coach and coach["output_config"] == {"effort": "medium"}
     assert all(
         t["strict"] and not t["input_schema"]["additionalProperties"] for t in coach["tools"]
     )
@@ -151,7 +152,7 @@ def test_coach_tools_return_stored_numbers() -> None:
 def test_a_failing_tool_goes_back_to_the_model_as_an_error() -> None:
     claude = FakeClaude(
         {
-            COACH_MODEL: [
+            COACH_MODEL: [  # system="s" is no known agent, so this is keyed by model
                 reply(("tool", "get_recovery", {"date": "2026-01-01"})),
                 reply(("text", "I don't have scores for that day.")),
             ]
@@ -234,7 +235,7 @@ def test_tool_numbers_come_rounded() -> None:
 def test_an_invented_number_is_sent_back_and_the_rewrite_is_used() -> None:
     claude = FakeClaude(
         {
-            COACH_MODEL: [
+            "health_coach": [
                 reply(("tool", "get_recovery", {"date": "today"})),
                 reply(("text", "77%, green. Your VO2max is 58.")),  # 58: no tool said so
                 reply(("text", "77%, green. I don't have a VO2max reading.")),
@@ -256,7 +257,7 @@ def test_an_invented_number_is_sent_back_and_the_rewrite_is_used() -> None:
 def test_a_number_still_unbacked_after_the_rewrite_is_flagged_not_passed_off() -> None:
     claude = FakeClaude(
         {
-            COACH_MODEL: [
+            "health_coach": [
                 reply(("tool", "get_recovery", {"date": "today"})),
                 reply(("text", "77%, and your VO2max is 58.")),
                 reply(("text", "77%; VO2max 58.")),
@@ -272,7 +273,7 @@ def test_a_number_still_unbacked_after_the_rewrite_is_flagged_not_passed_off() -
 def test_grounded_answers_go_straight_through() -> None:
     claude = FakeClaude(
         {
-            COACH_MODEL: [
+            "health_coach": [
                 reply(("tool", "get_recovery", {"date": "today"})),
                 reply(("text", "77%, green: HRV 70 vs your usual 53.")),
             ],

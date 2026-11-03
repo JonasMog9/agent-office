@@ -4,7 +4,7 @@ import pytest
 
 from app.agents import trader
 from app.agents.events import EventBus
-from app.agents.team import MANAGER_MODEL, SCOUT_MODEL, ask_manager
+from app.agents.team import ask_manager
 from app.db.session import SessionLocal
 from app.scout import paper_book
 from tests.agents.fake_claude import FakeClaude, reply
@@ -75,11 +75,11 @@ def test_a_scan_reports_fresh_trades_and_sales_but_not_replays():
 def test_the_scout_reading_paper_trades_brings_the_trader_over():
     claude = FakeClaude(
         {
-            MANAGER_MODEL: [
+            "manager": [
                 reply(("tool", "ask_market_scout", {"question": "How are my paper trades?"})),
                 reply(("text", "On paper, all flat so far.")),
             ],
-            SCOUT_MODEL: [
+            "market_scout": [
                 reply(("tool", "paper_trades", {})),
                 reply(("text", "Nothing closed yet. Paper money only.")),
             ],
