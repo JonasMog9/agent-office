@@ -2,7 +2,7 @@
 
 How do I know the agents actually work, and whether the cheap model would do? The evals answer
 that with numbers: about 50 questions the owner might text, run through the real
-Manager → specialist → tools path, and graded automatically.
+Manager → specialist → tools path, and graded automatically. (The live bot uses the same number check as a guard; see below.)
 
 ## What runs
 
@@ -33,6 +33,14 @@ evidence: if the Coach invents a number and the Manager repeats it, it's caught.
 
 Each call is also recorded (`backend/app/evals/recorder.py`): model, tokens, cost at list
 price, and seconds, so the report shows cost per answer and response times.
+
+## The live guard
+
+The grounded check also runs in production, on every agent's answer (`app/agents/grounding.py`,
+called from the agent loop). If an answer has a number that no tool result, instruction or
+the question backs up, the agent is sent back once to rewrite it with real numbers only. If
+it still can't, the answer goes out with "(Couldn't verify: …)" rather than a silent made-up
+number. The eval report counts these rewrites per setup ("Guard rewrites").
 
 ## Running it
 

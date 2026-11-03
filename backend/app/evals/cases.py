@@ -45,6 +45,8 @@ CASES: list[Case] = [
         "weekly-km", "How many km a week have I been running?", H, ("get_training_load", "get_plan")
     ),
     Case("trend-7", "Show me my last 7 days.", H, ("get_trend",)),
+    Case("my-week", "How was my week?", H, ("get_trend", "get_training_load", "get_recovery")),
+    Case("how-am-i", "How am I doing?", H, ("get_recovery", "get_trend", "get_training_load")),
     Case("trend-month", "How has my recovery trended over the last month?", H, ("get_trend",)),
     # --- races and zones
     Case("predict-5k", "What could I run a 5K in right now?", H, PREDICT),

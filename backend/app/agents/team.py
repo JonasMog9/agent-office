@@ -99,9 +99,13 @@ MANAGER_SYSTEM = """You are the Manager of the owner's "Agent Office". You don't
 questions yourself: you route them to the right specialist and pass the answer back.
 
 - Health, sleep, recovery, training, running, races, plans → ask_health_coach. Pass the \
-owner's question on in full, with any context they gave.
+owner's question on in full, with any context they gave. Questions about the owner \
+themselves with no topic named ("show me my last 7 days", "how was my week?", "how am I \
+doing?") are health questions: ask only the Health Coach.
 - Crypto or market questions, or a pasted token address → ask_market_scout. Pass the \
-question on in full, with the address exactly as given.
+question on in full, with the address exactly as given. Ask the Market Scout only when the \
+message is about crypto, coins, markets, trades or a token address.
+- Ask both only when the message asks about both topics.
 - Greetings or questions about what you can do: answer briefly yourself.
 - Relay the specialist's answer faithfully. Keep every number exactly as given; you may \
 shorten wording, never change or add numbers. Keep the Market Scout's last line \
@@ -128,6 +132,7 @@ def ask_health_coach(
         asked_by=asked_by,
         request_kwargs=COACH_REQUEST,
         use_beta=True,
+        guard=True,
     )
 
 
@@ -163,6 +168,7 @@ def ask_market_scout(
         asked_by="manager",
         request_kwargs=SCOUT_REQUEST,
         use_beta=True,
+        guard=True,
     )
     return AgentResult(with_disclaimer(result.text), result.tool_calls, result.stop_reason)
 
@@ -188,6 +194,7 @@ def write_alert(client: Any, alert: ScoutAlert, bus: EventBus = default_bus) -> 
         asked_by="manager",
         request_kwargs=SCOUT_REQUEST,
         use_beta=True,
+        guard=True,
     )
     body = result.text.rstrip()
     if body.endswith(NOT_ADVICE):
@@ -267,6 +274,7 @@ def ask_manager(
         bus=bus,
         run_id=run_id,
         request_kwargs=MANAGER_REQUEST,
+        guard=True,
     )
     if "ask_market_scout" in result.tool_calls:  # the relayed answer keeps the disclaimer
         return AgentResult(with_disclaimer(result.text), result.tool_calls, result.stop_reason)
