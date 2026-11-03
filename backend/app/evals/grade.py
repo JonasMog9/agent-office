@@ -1,0 +1,152 @@
+"""Grading an agent run: did the Manager pick the right specialist, did the specialist call
+the right tools, and is every number in the answer backed by a tool result?
+
+The number check ("grounding") is the guard behind CLAUDE.md's "the AI never invents a
+number". It pulls every number out of the answer and looks for it in the tool results (and
+the question), allowing for the answer rounding it. Small whole numbers (0–10, like "3
+strategies" or "2×"), dates and race names like "10K" are not checked: they're phrasing,
+not measurements.
+"""
+
+import json
+import re
+from dataclasses import dataclass, field
+
+MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec"
+DATE_PATTERNS = [
+    r"\b\d{4}-\d{2}-\d{2}(?:[ T][\d:.]+)?",  # 2026-11-03, with an optional time
+    rf"\b(?:{MONTHS})[a-z]*\.? \d{{1,2}}(?:st|nd|rd|th)?\b",  # Nov 3, November 3rd
+    rf"\b\d{{1,2}}(?:st|nd|rd|th)? (?:of )?(?:{MONTHS})[a-z]*\b",  # 3 Nov
+    r"(?<![$\d.,])\b\d{1,2}K\b",  # race distances: 5K, 10K (money uses $ or a lower-case k)
+]
+NUMBER = re.compile(r"(?<![\w.])[-−]?\$?(\d[\d,]*(?:\.\d+)?)\s?([kKMB]\b|%)?")
+CLOCK = re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\b")  # paces and times: 4:57, 1:32:10
+SCALE = {"k": 1e3, "K": 1e3, "M": 1e6, "B": 1e9}
+
+
+@dataclass(frozen=True)
+class Num:
+    raw: str
+    value: float
+    decimals: int
+
+
+def _strip_dates(text: str) -> str:
+    for p in DATE_PATTERNS:
+        text = re.sub(p, " ", text, flags=re.IGNORECASE)
+    return text
+
+
+def numbers(text: str) -> list[Num]:
+    """The numbers in a piece of text, with $, k/M/B and % understood."""
+    out = []
+    for m in NUMBER.finditer(CLOCK.sub(" ", _strip_dates(text))):
+        digits, suffix = m.group(1).replace(",", ""), m.group(2) or ""
+        decimals = len(digits.split(".")[1]) if "." in digits else 0
+        value = float(digits) * SCALE.get(suffix, 1)
+        out.append(Num(m.group(0).strip(), value, decimals))
+    return out
+
+
+def _flatten(obj: object) -> list[str]:
+    """Every scalar in a JSON tool result, as text (numbers and strings alike)."""
+    if isinstance(obj, dict):
+        return [s for k, v in obj.items() for s in [str(k), *_flatten(v)]]
+    if isinstance(obj, list):
+        return [s for v in obj for s in _flatten(v)]
+    return [str(obj)]
+
+
+def evidence(tool_results: list[str], question: str = "") -> tuple[set[float], str]:
+    """What an answer may quote: the numbers in the tool results and the question (plus
+    hours and minutes of any minute counts), and the raw text for clock times like 4:57."""
+    texts = [question]
+    for r in tool_results:
+        try:
+            texts += _flatten(json.loads(r))
+        except (json.JSONDecodeError, TypeError):
+            texts.append(str(r))
+    blob = "\n".join(texts)
+    values = {n.value for t in texts for n in numbers(t)}
+    for v in list(values):
+        if v == int(v) and 60 <= v < 1440:  # minutes → "7 h 48 min"
+            values |= {v // 60, v % 60}
+    return values, blob
+
+
+def _matches(n: Num, values: set[float]) -> bool:
+    tol = 0.5 * 10**-n.decimals
+    for v in values:
+        for cand in (v, v * 100):  # a fraction quoted as a percentage
+            if abs(cand - n.value) <= tol + 1e-9 or abs(abs(cand) - n.value) <= tol + 1e-9:
+                return True
+        if n.value >= 1e3 and v and abs(v - n.value) / max(abs(v), 1) < 0.05:
+            return True  # "$3.1M" quoting 3,140,000
+    return False
+
+
+def ungrounded(answer: str, tool_results: list[str], question: str = "") -> list[str]:
+    """Numbers in the answer that no tool result (or the question) backs up."""
+    values, blob = evidence(tool_results, question)
+    bad = [c for c in CLOCK.findall(_strip_dates(answer)) if c not in blob]
+    for n in numbers(answer):
+        if n.decimals == 0 and n.value <= 10:
+            continue
+        if not _matches(n, values):
+            bad.append(n.raw)
+    return bad
+
+
+@dataclass(frozen=True)
+class Case:
+    id: str
+    question: str
+    route: str  # "health_coach", "market_scout", "both", or "none" (the Manager answers)
+    tools_any: tuple[str, ...] = ()  # at least one of these must be called
+    tools_all: tuple[str, ...] = ()  # all of these must be called
+    tools_never: tuple[str, ...] = ("adjust_plan",)  # none of these may be called
+    mutates: bool = False  # changes the world (runs last)
+    note: str = ""
+
+
+@dataclass
+class Trace:
+    """What happened in one run, from the recorded API calls."""
+
+    answer: str
+    specialists: list[str] = field(default_factory=list)  # who the Manager asked
+    tools: list[str] = field(default_factory=list)  # the specialists' tool calls
+    tool_results: list[str] = field(default_factory=list)
+    error: str | None = None
+
+
+NOT_ADVICE = "Not financial advice."
+FAILED_ANSWERS = ("(no answer)", "ran out of steps", "I can't help with that one.")
+
+
+def grade(case: Case, trace: Trace) -> dict:
+    """Each check as True/False (None when it doesn't apply), and whether the case passed."""
+    if trace.error:
+        return {"passed": False, "error": trace.error, "checks": {}, "ungrounded": []}
+    expected = {
+        "none": [],
+        "both": ["health_coach", "market_scout"],
+    }.get(case.route, [case.route])
+    called = set(trace.tools)
+    bad_numbers = ungrounded(trace.answer, trace.tool_results, case.question)
+    checks = {
+        "route": sorted(set(trace.specialists)) == expected,
+        "tools": (not case.tools_any or bool(called & set(case.tools_any)))
+        and set(case.tools_all) <= called
+        and not (called & set(case.tools_never)),
+        "grounded": not bad_numbers,
+        "disclaimer": NOT_ADVICE in trace.answer if "market_scout" in expected else None,
+        "answered": bool(trace.answer.strip())
+        and not any(f in trace.answer for f in FAILED_ANSWERS),
+    }
+    return {
+        "passed": all(v for v in checks.values() if v is not None),
+        "checks": checks,
+        "ungrounded": bad_numbers,
+        "error": None,
+    }

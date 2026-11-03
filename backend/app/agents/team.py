@@ -208,8 +208,10 @@ def ask_manager(
     bus: EventBus = default_bus,
     run_id: str | None = None,
     scout_rules: Rules | None = None,
+    scout_src_factory: Callable[[], MarketData] = MarketData,
 ) -> AgentResult:
-    """Answer one owner message through the Manager. Every step lands on ``bus``."""
+    """Answer one owner message through the Manager. Every step lands on ``bus``.
+    ``scout_src_factory`` swaps the live market data for a stand-in (the evals use one)."""
     run_id = run_id or uuid.uuid4().hex[:12]
 
     def to_coach(args: dict) -> dict:
@@ -227,6 +229,7 @@ def ask_manager(
             bus,
             run_id,
             scout_rules or scout_settings.rules(),
+            scout_src_factory,
         )
         bus.emit("manager", "walking", "owner", "Back with the answer", run_id)
         return {"answer": result.text}
