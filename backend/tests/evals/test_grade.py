@@ -84,3 +84,26 @@ def test_scout_answers_need_the_disclaimer_and_both_routes_work():
 def test_an_error_fails_the_case():
     g = grade(Case("x", "?", "none"), Trace("", error="APIError: boom"))
     assert not g["passed"] and g["error"] == "APIError: boom"
+
+
+# False positives from the first real run (2026-11-03): each was the grader's mistake.
+SCAN = json.dumps({"coins_under_48h": 1, "volume_h24_usd": "$210k", "strain_0_21": 0.0})
+
+
+def test_numbers_in_field_names_count_as_evidence():
+    assert ungrounded("1 coin under 48 hours, $210k of 24h volume.", [SCAN]) == []
+    assert ungrounded("Strain 0.0 out of 21.", [SCAN]) == []
+
+
+def test_numbers_in_the_agents_instructions_count_as_evidence():
+    assert ungrounded("I can show up to 60 days.", [], instructions=["How many days, 1-60."]) == []
+    assert ungrounded("Strain runs 0 to 21.", [], instructions=["Strain (0-21) for a day."]) == []
+
+
+def test_date_ranges_and_years_are_dates():
+    assert ungrounded("Yellow from Oct 28 to 31, then 28–31 Oct.", []) == []
+    assert ungrounded("Your race is on 14 February 2027.", []) == []
+
+
+def test_a_trailing_comma_is_not_part_of_the_number():
+    assert [n.raw for n in numbers("set 2027, and 1,250 buyers,")] == ["1,250"]
