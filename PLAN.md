@@ -216,6 +216,17 @@ Done when the scanner has run for a week on Railway (a scan row every 10 minutes
 - [x] Add a simple stats page: a 30-day readiness chart, plus the Scout's flags vs. what happened. `/stats` on the office site: recovery bars by zone (with a table view), fitness vs. fatigue lines, and every Scout alert with its paper-trade outcome. The backend's `GET /stats` needs the office key; without it the page shows made-up demo numbers.
 - [ ] Record the demo video (script below), and post it on LinkedIn with the repo link.
 
+### Phase 8: Evals and reliability
+
+Prove the agents work, with numbers, and measure what the cheaper model would cost in quality.
+
+- [x] An eval harness (`app/evals/`): a made-up world built through the real pipeline, about 50 questions, automatic grading (route, tools, every number backed by a tool result, disclaimer), and per-call tokens, cost and latency. Runs from GitHub Actions (**Agent evals → Run workflow**). See docs/evals.md.
+- [ ] First run: production (Haiku + Sonnet) vs. all-Haiku, with the results in the README.
+- [ ] Hallucination guard in production: check each answer's numbers against its tool results before it's sent, and retry or flag when one isn't backed.
+- [ ] Cost and latency on the stats page, from every real request.
+
+Done when the eval report is in the README and the guard runs on every answer.
+
 ## Challenges log
 
 Problems hit while building this, how they were found, and what fixed them, newest first. This is the "tell me about a problem you ran into" list for interviews. Claude Code adds a row whenever a real problem comes up; see CLAUDE.md.

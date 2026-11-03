@@ -82,6 +82,10 @@ Only a coin that passes both gets an alert, at most once per coin and three a da
 
 New-coin returns are extremely skewed (most fall 90%+ from their peak, a few run far past 2×), so selling everything at 2× caps the winners that pay for the losers. The stats page tracks all three side by side on the same alerts.
 
+## Evals
+
+About 50 questions the owner might text, run through the real agents against a made-up but realistic world, and graded automatically: did the Manager ask the right specialist, did it call the right tools, is every number in the answer backed by a tool result, and does every crypto answer end with the disclaimer. The same questions run with Sonnet answering (production) and with Haiku everywhere, with cost per answer and response times, so the model choice is measured rather than guessed. How it works and how to run it: [docs/evals.md](docs/evals.md).
+
 ## Stats
 
 ![Stats page: 30 days of recovery, training load, and the Scout's alerts vs. outcomes](docs/media/stats.png)
