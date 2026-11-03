@@ -7,9 +7,7 @@ from sqlalchemy import select
 from app.agents import scout_tools
 from app.agents.events import EventBus
 from app.agents.team import (
-    MANAGER_MODEL,
     NOT_ADVICE,
-    SCOUT_MODEL,
     ask_manager,
     with_disclaimer,
     write_alert,
@@ -86,7 +84,7 @@ def _alert() -> ScoutAlert:
 def test_write_alert_words_it_and_adds_links_and_the_disclaimer():
     claude = FakeClaude(
         {
-            SCOUT_MODEL: [
+            "market_scout": [
                 reply(("tool", "get_alert", {})),
                 reply(("text", "🚀 Potential runner: RUN on solana\n10 h old, $3.0M volume.")),
             ]
@@ -97,7 +95,7 @@ def test_write_alert_words_it_and_adds_links_and_the_disclaimer():
     assert text.startswith("🚀 Potential runner: RUN")
     assert "Chart: https://dexscreener.com/solana/POOL" in text and "Contract: MINT" in text
     assert text.endswith(NOT_ADVICE) and text.count(NOT_ADVICE) == 1
-    got = json.loads(claude.tool_results(SCOUT_MODEL)[0]["content"])
+    got = json.loads(claude.tool_results("market_scout")[0]["content"])
     assert got["volume_24h"] == "$3.0M" and got["rug_tests"] == "pass"
     steps = [(e.agent, e.status, e.target) for e in bus.recent()]
     assert ("manager", "walking", "market_scout") in steps
@@ -111,11 +109,11 @@ def test_write_alert_words_it_and_adds_links_and_the_disclaimer():
 def test_manager_routes_crypto_questions_to_the_scout():
     claude = FakeClaude(
         {
-            MANAGER_MODEL: [
+            "manager": [
                 reply(("tool", "ask_market_scout", {"question": "Any runners today?"})),
                 reply(("text", "Nothing qualified today.")),  # the Manager drops the line
             ],
-            SCOUT_MODEL: [
+            "market_scout": [
                 reply(("tool", "latest_scan", {})),
                 reply(("text", "Nothing qualified today; closest was MEH.")),
             ],
@@ -123,12 +121,12 @@ def test_manager_routes_crypto_questions_to_the_scout():
     )
     bus = EventBus()
     result = ask_manager(claude, SessionLocal, "Any runners today?", bus, run_id="m")
-    scout_answer = json.loads(claude.tool_results(MANAGER_MODEL)[0]["content"])["answer"]
+    scout_answer = json.loads(claude.tool_results("manager")[0]["content"])["answer"]
     assert scout_answer.endswith(NOT_ADVICE)
     assert result.text.endswith(NOT_ADVICE)
-    scout_req = next(r for r in claude.requests if r["model"] == SCOUT_MODEL)
+    scout_req = next(r for r in claude.requests if r["agent"] == "market_scout")
     assert {t["name"] for t in scout_req["tools"]} == {"latest_scan", "check_token", "paper_trades"}
-    assert scout_req["beta"] and scout_req["fallbacks"] == "default"
+    assert scout_req["model"] == "claude-haiku-5-5" and "fallbacks" not in scout_req
     assert ("manager", "walking", "market_scout") in [
         (e.agent, e.status, e.target) for e in bus.recent("m")
     ]

@@ -24,8 +24,8 @@ flowchart LR
   TG <-- webhook --> API
   subgraph Railway["Railway · one Python backend"]
     API[FastAPI] --> M[Manager<br/>Haiku 5.5]
-    M --> HC[Health Coach<br/>Sonnet 5.5]
-    M --> MS[Market Scout<br/>Sonnet 5.5]
+    M --> HC[Health Coach<br/>Haiku 5.5]
+    M --> MS[Market Scout<br/>Haiku 5.5]
     HC --> T1[coach tools:<br/>recovery, sleep, load,<br/>predictions, plan]
     MS --> T2[scout tools:<br/>latest scan, rug tests,<br/>paper trades]
     SCAN[scanner, every 10 min] --> MS
@@ -90,8 +90,8 @@ Latest run (2026-11-03, 54 questions each):
 
 | Setup | Passed | Right specialist | Right tools | Numbers backed by tools | Disclaimer | Guard rewrites | Cost per answer | Median time |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Production: Haiku 5.5 routes, Sonnet 5.5 answers | 54/54 | 100% | 100% | 100% | 100% | 2 | 1.55¢ | 7.3 s |
-| All Haiku 5.5 | 54/54 | 100% | 100% | 100% | 100% | 0 | 0.11¢ | 6.3 s |
+| All Haiku 5.5 (now in production) | 54/54 | 100% | 100% | 100% | 100% | 0 | 0.11¢ | 6.3 s |
+| Haiku 5.5 routes, Sonnet 5.5 answers (the setup before) | 54/54 | 100% | 100% | 100% | 100% | 2 | 1.55¢ | 7.3 s |
 
 How it got there, run by run:
 
@@ -101,7 +101,7 @@ How it got there, run by run:
 | 2 | 48/52 | 51/52 | Fixed the grader: numbers from tool field names and descriptions, date ranges |
 | 3 | 54/54 | 54/54 | Number guard in the live agents; "show me my last 7 days" routed to the Coach only; 2 new cases |
 
-The guard is the same number check, run live: an answer with a number no tool backs up goes back for one rewrite, and in run 3 it caught and fixed two such answers before they'd have been sent. All-Haiku matched Sonnet at a fourteenth of the cost on every run so far; that's a lead worth acting on once a few more runs agree.
+The guard is the same number check, run live: an answer with a number no tool backs up goes back for one rewrite, and in run 3 it caught and fixed two such answers before they'd have been sent. All-Haiku matched Sonnet on every run at a fourteenth of the cost, so production now runs Haiku 5.5 for all three agents; the evals keep the Sonnet setup (`sonnet-specialists`) to compare against before any change back.
 
 ## Stats
 
@@ -114,7 +114,7 @@ The stats page also has a card per paper strategy (its rules, closed P/L, win ra
 | Item | Per month | Notes |
 | --- | --- | --- |
 | Railway (backend + Postgres) | $0 | Free trial; it has run everything so far |
-| Claude API | ~$3–8 | Haiku 5.5 routes ($0.10 / $0.50 per million input/output tokens); Sonnet 5.5 coaches and scouts ($2 / $10). A question costs roughly 2–5¢, mostly the Sonnet tool calls; the market scan itself uses no model at all |
+| Claude API | under $1 | Haiku 5.5 for all three agents ($0.10 / $0.50 per million input/output tokens). A question costs about 0.1¢ (measured by the evals; it was 1.5¢ with Sonnet 5.5 answering). The market scan itself uses no model at all |
 | Vercel (office page) | $0 | Free tier |
 | Telegram, Strava, iOS Shortcuts, GeckoTerminal, GoPlus, RugCheck | $0 | Free APIs |
 

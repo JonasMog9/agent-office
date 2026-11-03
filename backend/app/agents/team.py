@@ -1,7 +1,7 @@
 """The Manager, the Health Coach and the Market Scout, and how a question flows between them.
 
-    owner ──► Manager (Haiku 5.5) ──ask_health_coach──► Health Coach (Sonnet 5.5) ──► coach tools
-                                  └─ask_market_scout──► Market Scout (Sonnet 5.5) ──► scout tools
+    owner ──► Manager (Haiku 5.5) ──ask_health_coach──► Health Coach (Haiku 5.5) ──► coach tools
+                                  └─ask_market_scout──► Market Scout (Haiku 5.5) ──► scout tools
 
 The scanner (``app.scout.scan``) also wakes the Scout on its own when a coin passes every test:
 ``write_alert`` has it word the alert, and the Manager carries it to the owner. The Paper
@@ -27,17 +27,14 @@ from app.scout import settings as scout_settings
 from app.scout.screen import Rules
 from app.scout.sources import MarketData
 
+# All three run on Haiku 5.5. The evals (app/evals, docs/evals.md) showed it matching
+# Sonnet 5.5 on every question over three runs at about a fourteenth of the cost; rerun
+# them (setup "sonnet-specialists") before changing this back.
 MANAGER_MODEL = "claude-haiku-5-5"
-COACH_MODEL = "claude-sonnet-5-5"
-# Sonnet 5.5's safety classifiers can decline; "default" re-runs a declined request on
-# Anthropic's recommended fallback model server-side instead of failing the turn.
-COACH_REQUEST = {
-    "betas": ["server-side-fallback-2026-07-01"],
-    "fallbacks": "default",
-    "output_config": {"effort": "medium"},
-}
+COACH_MODEL = "claude-haiku-5-5"
+COACH_REQUEST = {"output_config": {"effort": "medium"}}
 MANAGER_REQUEST = {"output_config": {"effort": "low"}}
-SCOUT_MODEL = "claude-sonnet-5-5"
+SCOUT_MODEL = "claude-haiku-5-5"
 SCOUT_REQUEST = COACH_REQUEST
 NOT_ADVICE = "Not financial advice."
 
@@ -131,7 +128,6 @@ def ask_health_coach(
         run_id=run_id,
         asked_by=asked_by,
         request_kwargs=COACH_REQUEST,
-        use_beta=True,
         guard=True,
     )
 
@@ -167,7 +163,6 @@ def ask_market_scout(
         run_id=run_id,
         asked_by="manager",
         request_kwargs=SCOUT_REQUEST,
-        use_beta=True,
         guard=True,
     )
     return AgentResult(with_disclaimer(result.text), result.tool_calls, result.stop_reason)
@@ -193,7 +188,6 @@ def write_alert(client: Any, alert: ScoutAlert, bus: EventBus = default_bus) -> 
         run_id=run_id,
         asked_by="manager",
         request_kwargs=SCOUT_REQUEST,
-        use_beta=True,
         guard=True,
     )
     body = result.text.rstrip()

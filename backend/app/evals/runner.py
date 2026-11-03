@@ -19,10 +19,10 @@ from app.scout.screen import Rules
 
 HAIKU, SONNET = "claude-haiku-5-5", "claude-sonnet-5-5"
 SETUPS: dict[str, dict[str, str]] = {
-    # What runs in production: Haiku routes, Sonnet answers.
-    "production": {"manager": HAIKU, "health_coach": SONNET, "market_scout": SONNET},
-    # The cheap option: Haiku for everything.
-    "all-haiku": {"manager": HAIKU, "health_coach": HAIKU, "market_scout": HAIKU},
+    # What runs in production: Haiku 5.5 everywhere.
+    "production": {"manager": HAIKU, "health_coach": HAIKU, "market_scout": HAIKU},
+    # The previous setup, for comparison: Haiku routes, Sonnet 5.5 answers.
+    "sonnet-specialists": {"manager": HAIKU, "health_coach": SONNET, "market_scout": SONNET},
 }
 SPECIALIST = {"ask_health_coach": "health_coach", "ask_market_scout": "market_scout"}
 

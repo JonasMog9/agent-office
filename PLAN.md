@@ -225,6 +225,8 @@ Prove the agents work, with numbers, and measure what the cheaper model would co
 - [x] Hallucination guard in production (`agents/grounding.py`, used by `agents/loop.py` for every agent): an answer with a number no tool result, instruction or question backs up goes back to the model once for a rewrite; if a number still can't be traced, the answer says "Couldn't verify: …" instead of passing it off as data. The office shows "Double-checking the numbers". The eval report counts the rewrites.
 - [ ] Cost and latency on the stats page, from every real request.
 
+- [x] Switch production to Haiku 5.5 for all three agents, on the evals' evidence (54/54 on both setups in run 3, and Haiku at least as good on runs 1–2), cutting cost per answer from about 1.5¢ to 0.1¢. The Sonnet setup stays in the evals as `sonnet-specialists`.
+
 Done when the eval report is in the README and the guard runs on every answer.
 
 Also from the first runs: "show me my last 7 days" went to both specialists. The Manager's instructions now send questions about the owner with no topic named to the Health Coach only, with two more eval cases for it.

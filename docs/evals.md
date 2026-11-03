@@ -15,8 +15,8 @@ Manager → specialist → tools path, and graded automatically. (The live bot u
   greetings, and tricky ones (a day with no data, a metric no tool has, a question for both
   specialists).
 - **Two setups**, run on the same questions:
-  - `production`: Haiku 5.5 routes, Sonnet 5.5 answers (what's deployed).
-  - `all-haiku`: Haiku 5.5 everywhere (about 20× cheaper per token).
+  - `production`: Haiku 5.5 everywhere (what's deployed, since it matched Sonnet on every run).
+  - `sonnet-specialists`: Haiku 5.5 routes, Sonnet 5.5 answers (the setup before, kept to compare against).
 
 ## How it's graded (`backend/app/evals/grade.py`)
 
@@ -44,8 +44,8 @@ number. The eval report counts these rewrites per setup ("Guard rewrites").
 
 ## Running it
 
-It calls the real Claude API, so it costs money: roughly $1–2 for `production` over every
-question, a few cents for `all-haiku`.
+It calls the real Claude API, so it costs money: roughly $1 for `sonnet-specialists` over every
+question, a few cents for `production`.
 
 **From GitHub (nothing to install):**
 

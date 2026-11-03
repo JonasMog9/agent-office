@@ -1,14 +1,14 @@
 name: Agent evals
 
 # Runs the agent evals against the real Claude API. Manual only: it costs money
-# (about $1–2 for the production setup, cents for all-haiku). Needs the repository
+# (cents for production, about $1 for sonnet-specialists). Needs the repository
 # secret ANTHROPIC_API_KEY. Results: the run's summary page, and the eval-results artifact.
 on:
   workflow_dispatch:
     inputs:
       setups:
-        description: "Model setups, comma-separated (production, all-haiku)"
-        default: "production,all-haiku"
+        description: "Model setups, comma-separated (production, sonnet-specialists)"
+        default: "production,sonnet-specialists"
       cases:
         description: "Case ids, comma-separated, or all"
         default: "all"

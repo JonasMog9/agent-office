@@ -4,8 +4,8 @@
     python -m app.evals.run --setups production --cases recovery-today,paper
 
 It always uses its own throwaway SQLite database (never the app's), needs ANTHROPIC_API_KEY,
-and costs real money: about $1–2 for the production setup over every case, a few cents for
-all-haiku. Writes results.json and REPORT.md to --out.
+and costs real money: a few cents for the production setup (all Haiku) over every case,
+about $1 for sonnet-specialists. Writes results.json and REPORT.md to --out.
 """
 
 import argparse
@@ -19,7 +19,7 @@ from pathlib import Path
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--setups", default="production,all-haiku")
+    p.add_argument("--setups", default="production,sonnet-specialists")
     p.add_argument("--cases", default="all", help="comma-separated case ids, or 'all'")
     p.add_argument("--out", default="eval-results")
     args = p.parse_args(argv)
