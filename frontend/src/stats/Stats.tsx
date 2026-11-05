@@ -113,6 +113,9 @@ export default function Stats() {
               Demo · made-up numbers
             </span>
           )}
+          <a className="pill link" href="/health">
+            Health
+          </a>
           <a className="pill link" href="/">
             ← Office
           </a>

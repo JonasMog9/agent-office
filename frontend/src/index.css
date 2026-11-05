@@ -592,3 +592,165 @@ table.results td small,
   .stats .actions { width: 100%; justify-content: flex-end; }
   .tile .v { font-size: 1.35rem; }
 }
+
+/* ---- health page ---- */
+
+.health .savings {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  background: linear-gradient(120deg, rgba(25, 158, 112, 0.18), rgba(57, 135, 229, 0.12));
+  border: 1px solid rgba(25, 158, 112, 0.45);
+}
+.health .savings > div {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+}
+.health .savings .k {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.health .savings .v {
+  font-size: 1.35rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.health .savings p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #c3cbe6;
+}
+.stats .tiles.tiles-8 {
+  grid-template-columns: repeat(4, 1fr);
+}
+.races {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 12px 0 6px;
+}
+.race {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 13px;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 12px;
+  background: rgba(8, 12, 28, 0.55);
+  border: 1px solid var(--line);
+}
+.race.on {
+  border-color: #3987e5;
+  background: rgba(57, 135, 229, 0.16);
+}
+.race .k {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.race .v {
+  font-size: 1.35rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.race .s {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.grid2 > * {
+  min-width: 0; /* let wide tables scroll inside their card instead of widening the page */
+}
+.grid2 > .card {
+  margin-bottom: 16px;
+}
+.grid2.inner {
+  gap: 4px 16px;
+}
+.card td.wrap {
+  white-space: normal;
+}
+.card tr.today td {
+  background: rgba(57, 135, 229, 0.12);
+}
+.calendar {
+  max-width: 300px;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 4px 0 6px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.swatch.rest {
+  background: rgba(150, 170, 230, 0.1);
+  margin-right: 0;
+}
+.legend .swatch {
+  margin-right: 0;
+}
+.zones {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 10px 0 6px;
+}
+.zone-row {
+  display: grid;
+  grid-template-columns: 1.6fr 2fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.8rem;
+}
+.zbar {
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(150, 170, 230, 0.1);
+  overflow: hidden;
+}
+.zbar span {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+}
+.zval {
+  color: var(--muted);
+  white-space: nowrap;
+  font-size: 0.76rem;
+}
+.footnote {
+  text-align: center;
+  margin-top: 8px;
+}
+.footnote a {
+  color: #86b6ef;
+}
+
+@media (max-width: 700px) {
+  .health .savings { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .stats .tiles.tiles-8 { grid-template-columns: 1fr 1fr; }
+  .races { grid-template-columns: 1fr 1fr; }
+  .grid2 { grid-template-columns: 1fr; gap: 0; }
+  .zone-row { grid-template-columns: 1fr 1fr; }
+  .zone-row .zval { grid-column: 1 / -1; }
+}

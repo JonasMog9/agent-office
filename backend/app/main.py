@@ -18,6 +18,7 @@ from app.agents.routes import router as agents_router
 from app.agents.ws import router as ws_router
 from app.config import get_settings
 from app.db.session import SessionLocal, get_session
+from app.health_stats import router as health_stats_router
 from app.ingest.apple_routes import router as apple_router
 from app.ingest.routes import router as ingest_router
 from app.ingest.service import reassign_night_samples
@@ -80,6 +81,7 @@ app.include_router(agents_router)
 app.include_router(telegram_router)
 app.include_router(ws_router)
 app.include_router(stats_router)
+app.include_router(health_stats_router)
 
 
 @app.get("/health")
