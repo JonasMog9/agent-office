@@ -116,3 +116,29 @@ def test_run_rows_are_newest_first_with_pace():
 def test_pace():
     assert history.pace_s_per_km(5000, 1500) == pytest.approx(300)
     assert history.pace_s_per_km(None, 100) is None
+
+
+def test_records_match_stravas_capitalised_names() -> None:
+    runs = [
+        {
+            "day": date(2026, 7, 23),
+            "name": "a",
+            "summary": {
+                "best_efforts": [
+                    {"name": "5K", "elapsed_time": 1355},
+                    {"name": "10K", "elapsed_time": 3300},
+                ]
+            },
+        },
+        {
+            "day": date(2026, 8, 1),
+            "name": "b",
+            "summary": {"best_efforts": [{"name": "5k", "elapsed_time": 1400}]},
+        },
+    ]
+    recs = {r["name"]: r for r in history.personal_records(runs)}
+    assert (
+        recs["5k"]["seconds"] == 1355
+        and recs["5k"]["run"] == "a"
+        and recs["10k"]["seconds"] == 3300
+    )

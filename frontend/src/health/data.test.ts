@@ -22,9 +22,9 @@ describe('fitness age', () => {
     value, age, label: null, vo2max: 52, median_at_age: 48, notes: [], source: '', history: [],
   })
   it('compares with my real age', () => {
-    expect(fitnessAgeLine(fa(20, 24.8))).toBe('5 years younger than my 24')
-    expect(fitnessAgeLine(fa(26, 24.8))).toBe('1 year older than my 24')
-    expect(fitnessAgeLine(fa(25, 24.8))).toBe('Same as my age (25)')
+    expect(fitnessAgeLine(fa(20, 24.8))).toBe('5 years younger')
+    expect(fitnessAgeLine(fa(26, 24.8))).toBe('1 year older')
+    expect(fitnessAgeLine(fa(25, 24.8))).toBe('Same as my age')
     expect(fitnessAgeLine(fa(20, null))).toBe('From VO2max 52')
     expect(fitnessAgeLine(null)).toBe('Needs a VO2max')
   })
