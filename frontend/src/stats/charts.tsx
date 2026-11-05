@@ -14,7 +14,7 @@ const ZONE = { green: 'Green', yellow: 'Yellow', red: 'Red' } as const
 const short = (iso: string) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 
-function Tip({ x, y, lines, W }: { x: number; y: number; lines: string[]; W: number }) {
+export function Tip({ x, y, lines, W }: { x: number; y: number; lines: string[]; W: number }) {
   const w = Math.max(...lines.map((l) => l.length)) * 6.6 + 16
   const h = lines.length * 16 + 10
   const tx = Math.min(Math.max(x - w / 2, 2), W - w - 2)

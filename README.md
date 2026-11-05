@@ -9,7 +9,7 @@ A cloud-hosted team of three AI agents that I run from Telegram, shown live as r
 
 ![The office: the Manager flies down the hallway to the Health Lab, the Coach answers, the Manager carries it to the uplink](docs/media/office.gif)
 
-**[Watch the office live](https://agent-office-tau-five.vercel.app/)** (the public version plays a demo with made-up numbers) · **[Stats page](https://agent-office-tau-five.vercel.app/stats)** · Built with Python, FastAPI, Postgres, the Claude API, Telegram, Phaser and React, on Railway and Vercel.
+**[Watch the office live](https://agent-office-tau-five.vercel.app/)** (the public version plays a demo with made-up numbers) · **[Stats page](https://agent-office-tau-five.vercel.app/stats)** · **[Health & Training page](https://agent-office-tau-five.vercel.app/health)** · Built with Python, FastAPI, Postgres, the Claude API, Telegram, Phaser and React, on Railway and Vercel.
 
 ## How it works
 
@@ -109,6 +109,21 @@ The guard is the same number check, run live: an answer with a number no tool ba
 
 The stats page also has a card per paper strategy (its rules, closed P/L, win rate, and what the open trades would make if sold now), a running-total chart of the three, and each alert's result under each strategy.
 
+## Health & Training page
+
+![Health & Training page: the Strava savings, today's numbers, the race-time predictor and VO2max](docs/media/health.png)
+
+`/health` shows everything a Strava or Garmin subscription did, computed in Python from my own Apple Watch and Strava data, so I cancelled my Strava subscription (about CA$80 a year). Runs still sync from the free Strava app through its free API.
+
+- **Race-time predictor:** 5K, 10K, half and marathon, each with its pace, range, confidence, the methods behind it, and how it has moved over six months.
+- **VO2max** over the last year (Apple Watch's estimate).
+- **Mileage:** weekly km for 52 weeks, totals (last 4 weeks, year to date, all time), and a 12-week training calendar.
+- **Fitness & freshness:** fitness, fatigue and form from heart rate on every run.
+- **Zones and records:** time in each heart-rate zone over the last 4 weeks, Daniels pace zones, and personal records from Strava's best efforts.
+- **Daily numbers:** recent runs (pace, heart rate, climb, cadence), resting heart rate and HRV over 90 days, sleep stages for 30 nights, running form (cadence, ground contact, vertical oscillation, stride length), and this week's training plan.
+
+Like the stats page it needs the office key (`GET /stats/health`); without it, it shows made-up demo numbers.
+
 ## Costs
 
 | Item | Per month | Notes |
@@ -118,7 +133,7 @@ The stats page also has a card per paper strategy (its rules, closed P/L, win ra
 | Vercel (office page) | $0 | Free tier |
 | Telegram, Strava, iOS Shortcuts, GeckoTerminal, GoPlus, RugCheck | $0 | Free APIs |
 
-These are estimates from my own usage (a morning summary plus a handful of questions a day). Check current pricing before relying on them.
+These are estimates from my own usage (a morning summary plus a handful of questions a day). Check current pricing before relying on them. On the other side of the ledger, the Health & Training page let me cancel my Strava subscription, which saves about CA$80 a year.
 
 ## Repo map
 

@@ -214,6 +214,7 @@ Done when the scanner has run for a week on Railway (a scan row every 10 minutes
 
 - [x] Write a README with a GIF, an architecture diagram, how the readiness score works, and costs. The GIF is recorded from the public demo (`docs/media/office.gif`), the diagram is Mermaid, and costs use current Claude pricing (Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10 per million tokens).
 - [x] Add a simple stats page: a 30-day readiness chart, plus the Scout's flags vs. what happened. `/stats` on the office site: recovery bars by zone (with a table view), fitness vs. fatigue lines, and every Scout alert with its paper-trade outcome. The backend's `GET /stats` needs the office key; without it the page shows made-up demo numbers.
+- [x] A Health & Training page (`/health`) so the Strava subscription could be cancelled: race-time predictor (with methods and six months of history), VO2max, weekly mileage, totals, a training calendar, fitness and freshness, time in heart-rate zones, pace zones, personal records, recent runs, resting HR and HRV, sleep stages, running form and this week's plan. Every number comes from `GET /stats/health` (key-gated), computed in `coach/history.py` (pure, tested); demo numbers without the key.
 - [ ] Record the demo video (script below), and post it on LinkedIn with the repo link.
 
 ### Phase 8: Evals and reliability

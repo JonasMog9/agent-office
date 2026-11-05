@@ -140,6 +140,9 @@ function App() {
           </div>
         </div>
         <div className="actions">
+          <a className="pill link" href="/health">
+            Health →
+          </a>
           <a className="pill link" href="/stats">
             Stats →
           </a>
