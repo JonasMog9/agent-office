@@ -183,8 +183,8 @@ export function fitnessAgeLine(fa: FitnessAge | null): string {
   if (!fa || fa.value === null) return 'Needs a VO2max'
   if (fa.age === null) return `From VO2max ${fa.vo2max}`
   const diff = fa.value - Math.round(fa.age)
-  if (diff === 0) return `Same as my age (${Math.round(fa.age)})`
-  return `${Math.abs(diff)} ${Math.abs(diff) === 1 ? 'year' : 'years'} ${diff < 0 ? 'younger' : 'older'} than my ${Math.floor(fa.age)}`
+  if (diff === 0) return 'Same as my age'
+  return `${Math.abs(diff)} ${Math.abs(diff) === 1 ? 'year' : 'years'} ${diff < 0 ? 'younger' : 'older'}`
 }
 
 // ---- formatting ----------------------------------------------------------------------------

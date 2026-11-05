@@ -35,6 +35,8 @@ EFFORTS = {
     "30k": 30000,
     "Marathon": 42195,
 }
+# Strava's live API capitalises some names ("5K", "10K", "1K"); match them case-insensitively.
+EFFORT_KEY = {name.lower(): name for name in EFFORTS}
 
 
 def week_start(d: date) -> date:
@@ -90,8 +92,8 @@ def personal_records(runs: Iterable[Mapping]) -> list[dict]:
     best: dict[str, dict] = {}
     for r in runs:
         for be in (r.get("summary") or {}).get("best_efforts") or []:
-            name, t = be.get("name"), be.get("elapsed_time")
-            if name not in EFFORTS or not t:
+            name, t = EFFORT_KEY.get(str(be.get("name", "")).lower()), be.get("elapsed_time")
+            if name is None or not t:
                 continue
             if name not in best or t < best[name]["seconds"]:
                 best[name] = {
