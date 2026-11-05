@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { clock, demoHealth, hm, pace } from './data'
+import { clock, demoHealth, fitnessAgeLine, hm, pace } from './data'
+import type { FitnessAge } from './data'
 
 describe('formatting', () => {
   it('shows race times and paces the way runners read them', () => {
@@ -13,6 +14,19 @@ describe('formatting', () => {
     expect(hm(468)).toBe('7 h 48 min')
     expect(hm(12)).toBe('0 h 12 min')
     expect(hm(null)).toBe('–')
+  })
+})
+
+describe('fitness age', () => {
+  const fa = (value: number | null, age: number | null): FitnessAge => ({
+    value, age, label: null, vo2max: 52, median_at_age: 48, notes: [], source: '', history: [],
+  })
+  it('compares with my real age', () => {
+    expect(fitnessAgeLine(fa(20, 24.8))).toBe('5 years younger than my 24')
+    expect(fitnessAgeLine(fa(26, 24.8))).toBe('1 year older than my 24')
+    expect(fitnessAgeLine(fa(25, 24.8))).toBe('Same as my age (25)')
+    expect(fitnessAgeLine(fa(20, null))).toBe('From VO2max 52')
+    expect(fitnessAgeLine(null)).toBe('Needs a VO2max')
   })
 })
 

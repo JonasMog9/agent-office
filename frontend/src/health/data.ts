@@ -117,6 +117,17 @@ export interface PlanWorkout {
   description: string
 }
 
+export interface FitnessAge {
+  value: number | null
+  age: number | null
+  label: 'younger' | 'same' | 'older' | null
+  vo2max: number
+  median_at_age: number | null
+  notes: string[]
+  source: string
+  history: { day: string; value: number | null }[]
+}
+
 export interface Health {
   today: string
   generated_at?: string
@@ -153,6 +164,8 @@ export interface Health {
     vdot_source: string
   }
   records: Record_[]
+  best_vdot: { vdot: number; effort: string; seconds: number; day: string; run: string } | null
+  fitness_age: FitnessAge | null
   runs: RunRow[]
   form: FormDay[]
   plan: { this_week: { start: string; phase: string; km: number; workouts: PlanWorkout[] }; goal: { race: string | null; date: string | null }; today: PlanWorkout | null } | null
@@ -163,6 +176,15 @@ export async function fetchHealth(key: string, api = API_URL): Promise<Health | 
   if (r.status === 401) return 'locked'
   if (!r.ok) throw new Error(`health: HTTP ${r.status}`)
   return r.json()
+}
+
+/** The fitness-age tile's subtitle: how it compares with my real age. */
+export function fitnessAgeLine(fa: FitnessAge | null): string {
+  if (!fa || fa.value === null) return 'Needs a VO2max'
+  if (fa.age === null) return `From VO2max ${fa.vo2max}`
+  const diff = fa.value - Math.round(fa.age)
+  if (diff === 0) return `Same as my age (${Math.round(fa.age)})`
+  return `${Math.abs(diff)} ${Math.abs(diff) === 1 ? 'year' : 'years'} ${diff < 0 ? 'younger' : 'older'} than my ${Math.floor(fa.age)}`
 }
 
 // ---- formatting ----------------------------------------------------------------------------
@@ -376,6 +398,20 @@ export function demoHealth(end = new Date()): Health {
       { name: '10k', distance_m: 10000, seconds: 2561, day: day(55), run: 'Demo 10K' },
       { name: 'Half-Marathon', distance_m: 21097, seconds: 5741, day: day(120), run: 'Demo half' },
     ],
+    best_vdot: { vdot: 48.7, effort: '5k', seconds: 1218, day: day(34), run: 'Demo parkrun' },
+    fitness_age: {
+      value: demoFitnessAge(vo2max.at(-1)!.value),
+      age: 24.8,
+      label: demoFitnessAge(vo2max.at(-1)!.value) < 25 ? 'younger' : 'older',
+      vo2max: vo2max.at(-1)!.value,
+      median_at_age: 48,
+      notes: [
+        'The age at which the median VO2max equals yours (FRIEND registry treadmill medians (Kaminsky et al. 2015)).',
+        "Fitter than the median 20-year-old: the table doesn't go younger than 20.",
+      ],
+      source: 'FRIEND registry treadmill medians (Kaminsky et al. 2015)',
+      history: vo2max.map((v) => ({ day: v.day, value: demoFitnessAge(v.value) })),
+    },
     runs: runs.slice(0, 15), // newest first
     form: vitals.map((v, i) => ({
       day: v.day,
@@ -403,4 +439,15 @@ export function demoHealth(end = new Date()): Health {
       today: null,
     },
   }
+}
+
+// The backend's fitness_age (men's FRIEND medians), only so the demo's chart looks real.
+function demoFitnessAge(vo2: number): number {
+  const pts: [number, number][] = [[15, 53.6], [25, 48], [35, 42.4], [45, 37.8], [55, 32.6], [65, 28.2], [75, 24.4], [85, 20.6]]
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [a0, v0] = pts[i]
+    const [a1, v1] = pts[i + 1]
+    if (vo2 <= v0 && vo2 >= v1) return Math.min(80, Math.max(20, Math.round(a0 + ((a1 - a0) * (v0 - vo2)) / (v0 - v1))))
+  }
+  return vo2 > pts[0][1] ? 20 : 80
 }
