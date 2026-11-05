@@ -18,7 +18,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents import coach_tools
-from app.coach import history, plan_service
+from app.coach import history, plan_service, vdot
+from app.coach.fitness_age import SOURCE as FITNESS_AGE_SOURCE
+from app.coach.fitness_age import age_on, fitness_age
 from app.coach.predict import RACES, RUN_TYPES
 from app.coach.zones import hr_zones, pace_zones
 from app.config import get_settings
@@ -247,6 +249,45 @@ def zones(session: Session, end: date) -> dict:
     }
 
 
+VDOT_EFFORTS = ("5k", "10k", "Half-Marathon")
+
+
+def best_vdot(records: list[dict]) -> dict | None:
+    """The highest VDOT any all-time 5K, 10K or half best effort gives, and which one."""
+    best = None
+    for r in records:
+        if r["name"] not in VDOT_EFFORTS:
+            continue
+        v = vdot.vdot(r["distance_m"], r["seconds"])
+        if best is None or v > best["vdot"]:
+            best = {"vdot": round(v, 1), "effort": r["name"]} | {
+                k: r[k] for k in ("seconds", "day", "run")
+            }
+    return best
+
+
+def fitness_age_block(vo2: list[dict], end: date) -> dict | None:
+    """Fitness age from today's VO2max, the real age from ATHLETE_BIRTH_MONTH, and history."""
+    if not vo2:
+        return None
+    settings = get_settings()
+    sex, birth = settings.athlete_sex, settings.athlete_birth_month
+    age = age_on(birth, end) if birth else None
+    now = fitness_age(vo2[-1]["value"], sex, age)
+    return {
+        "value": now.value,
+        "age": None if age is None else round(age, 1),
+        "label": now.label,
+        "vo2max": vo2[-1]["value"],
+        "median_at_age": next(
+            (c.value for c in now.components if c.name == "median at your age"), None
+        ),
+        "notes": now.notes,
+        "source": FITNESS_AGE_SOURCE,
+        "history": [{"day": r["day"], "value": fitness_age(r["value"], sex).value} for r in vo2],
+    }
+
+
 def summary(
     end: date, vo2: list[dict], weekly: list[dict], vit: list[dict], ld: list[dict]
 ) -> dict:
@@ -290,6 +331,7 @@ def health_page(session: Session, end: date) -> dict:
     ytd = [r for r in all_runs if r["day"] >= date(end.year, 1, 1)]
     last4 = [r for r in all_runs if r["day"] > end - timedelta(weeks=4)]
     plan = coach_tools.get_plan(session, {"pain": False})
+    records = history.personal_records(all_runs)
     return {
         "today": end.isoformat(),
         "summary": summary(end, vo2, weekly, vit, ld),
@@ -306,7 +348,9 @@ def health_page(session: Session, end: date) -> dict:
         "vitals": vit,
         "sleep": sleep(rows90[-30:]),
         "zones": zones(session, end),
-        "records": history.personal_records(all_runs),
+        "records": records,
+        "best_vdot": best_vdot(records),
+        "fitness_age": fitness_age_block(vo2, end),
         "runs": history.run_rows(all_runs),
         "form": running_form(rows90, all_runs),
         "plan": {

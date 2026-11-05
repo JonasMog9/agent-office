@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     strava_backfill_days: int = 365
     apple_export_days: int = 400  # history kept from an Apple Health export upload
     # Scoring settings. MAX_HR is estimated from Strava heart-rate data when unset.
-    athlete_sex: str = "male"  # TRIMP coefficients: "male" or "female"
+    athlete_sex: str = "male"  # TRIMP coefficients and fitness-age norms: "male" or "female"
+    athlete_birth_month: str = ""  # "YYYY-MM", for fitness age; unset hides it
     max_hr: float | None = None
     sleep_need_min: float = 480
     # Home time zone (IANA name, e.g. America/New_York). Places nights stored before the

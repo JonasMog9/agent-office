@@ -117,6 +117,8 @@ The stats page also has a card per paper strategy (its rules, closed P/L, win ra
 
 - **Race-time predictor:** 5K, 10K, half and marathon, each with its pace, range, confidence, the methods behind it, and how it has moved over six months.
 - **VO2max** over the last year (Apple Watch's estimate).
+- **Fitness age:** the age at which a typical person has my VO2max (like Garmin's Fitness Age or WHOOP Age), from the FRIEND registry's median VO2max per decade, next to my real age (`ATHLETE_BIRTH_MONTH`) and charted over the year.
+- **Running score (VDOT):** Daniels' fitness number now (efforts from the last 8 weeks) and my best ever (from all-time best efforts).
 - **Mileage:** weekly km for 52 weeks, totals (last 4 weeks, year to date, all time), and a 12-week training calendar.
 - **Fitness & freshness:** fitness, fatigue and form from heart rate on every run.
 - **Zones and records:** time in each heart-rate zone over the last 4 weeks, Daniels pace zones, and personal records from Strava's best efforts.

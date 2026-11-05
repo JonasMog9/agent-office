@@ -13,6 +13,7 @@ import {
   clock,
   demoHealth,
   fetchHealth,
+  fitnessAgeLine,
   hm,
   pace,
   shortDay,
@@ -22,6 +23,7 @@ import {
 
 const ZONE = { green: 'Green', yellow: 'Yellow', red: 'Red' } as const
 const RACE_NAME: Record<string, string> = { '5K': '5K', '10K': '10K', 'half marathon': 'Half', marathon: 'Marathon' }
+const EFFORT_NAME: Record<string, string> = { '5k': '5K', '10k': '10K', 'Half-Marathon': 'half marathon' }
 const sign = (x: number) => `${x > 0 ? '+' : x < 0 ? '−' : ''}${Math.abs(x)}`
 
 function TotalsRow({ label, t }: { label: string; t: Totals }) {
@@ -79,6 +81,8 @@ export default function Health() {
   const W = chartWidth(narrow)
   const half = narrow ? W : 520
   const s = data.summary
+  const fa = data.fitness_age
+  const best = data.best_vdot
   const current = Object.fromEntries(data.predictions.current.map((c) => [c.distance, c]))
   const picked = current[race]
   const hist = data.predictions.history[race] ?? []
@@ -144,6 +148,11 @@ export default function Health() {
           <span className="s">{s.vo2max_change_90d === null ? 'Apple Watch estimate' : `${sign(s.vo2max_change_90d)} in 90 days`}</span>
         </div>
         <div className="tile">
+          <span className="k">Fitness age</span>
+          <span className="v">{fa?.value ?? '–'}</span>
+          <span className="s">{fitnessAgeLine(fa)}</span>
+        </div>
+        <div className="tile">
           <span className="k">This week</span>
           <span className="v">{s.this_week_km} km</span>
           <span className="s">{s.avg_week_km_4w === null ? '–' : `4-week average ${s.avg_week_km_4w} km`}</span>
@@ -162,14 +171,13 @@ export default function Health() {
           <span className="s">vs. my own baselines</span>
         </div>
         <div className="tile">
-          <span className="k">Resting HR</span>
-          <span className="v">{s.resting_hr ?? '–'} bpm</span>
-          <span className="s">30-day average {s.resting_hr_30d ?? '–'}</span>
-        </div>
-        <div className="tile">
-          <span className="k">HRV (SDNN)</span>
-          <span className="v">{s.hrv ?? '–'} ms</span>
-          <span className="s">30-day average {s.hrv_30d ?? '–'}</span>
+          <span className="k">Resting HR · HRV</span>
+          <span className="v">
+            {s.resting_hr ?? '–'} · {s.hrv ?? '–'}
+          </span>
+          <span className="s">
+            bpm · ms; 30-day {s.resting_hr_30d ?? '–'} · {s.hrv_30d ?? '–'}
+          </span>
         </div>
         <div className="tile">
           <span className="k">Fitness · fatigue</span>
@@ -179,9 +187,9 @@ export default function Health() {
           <span className="s">Form {s.form === null ? '–' : sign(s.form)}</span>
         </div>
         <div className="tile">
-          <span className="k">VDOT</span>
+          <span className="k">Running score (VDOT)</span>
           <span className="v">{data.zones.vdot ?? '–'}</span>
-          <span className="s">Daniels running fitness</span>
+          <span className="s">{best ? `Best ever ${best.vdot}, higher = faster` : 'Higher = faster'}</span>
         </div>
       </section>
 
@@ -247,6 +255,43 @@ export default function Health() {
           W={W}
           format={(v) => v.toFixed(1)}
         />
+      </section>
+
+      {fa && (
+        <section className="card">
+          <h2>Fitness age</h2>
+          <p className="muted">
+            The age at which a typical person has my VO2max ({fa.vo2max}). VO2max drops with age, so it can be read as an
+            age: the idea behind Garmin's Fitness Age and WHOOP Age. The yardstick is the median VO2max for each decade of
+            age in the FRIEND fitness registry (Kaminsky et al. 2015).
+            {fa.age !== null && fa.median_at_age !== null
+              ? ` I'm ${Math.floor(fa.age)}; the median VO2max at my age is ${fa.median_at_age}.`
+              : ''}
+          </p>
+          {fa.notes.slice(1).map((n) => (
+            <p key={n} className="muted">{n}</p>
+          ))}
+          {fa.history.length > 1 && (
+            <TimeLines
+              days={fa.history.map((h) => h.day)}
+              series={[{ key: 'fa', label: 'Fitness age', color: BLUE, values: fa.history.map((h) => h.value) }]}
+              W={W}
+              format={(v) => `${Math.round(v)}`}
+            />
+          )}
+        </section>
+      )}
+
+      <section className="card">
+        <h2>Running score (VDOT)</h2>
+        <p className="muted">
+          VDOT is Jack Daniels' running-fitness number: the VO2max that a race time implies, so higher means faster. Now:{' '}
+          <b>{data.zones.vdot ?? '–'}</b>, {data.zones.vdot_source}, using efforts in the last 8 weeks only, so it follows
+          current form.
+          {best
+            ? ` Best ever: ${best.vdot}, from a ${EFFORT_NAME[best.effort] ?? best.effort} in ${clock(best.seconds)} on ${shortDay(best.day)}.`
+            : ''}
+        </p>
       </section>
 
       <section className="card">

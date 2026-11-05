@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from app.config import get_settings
 from app.db.session import SessionLocal
 from app.evals import world
+from app.health_stats import best_vdot
 from app.main import app
 
 KEY = "k" * 24
@@ -49,3 +50,39 @@ def test_the_eval_world_fills_every_section(client: TestClient) -> None:
     assert len(body["calendar"]) == 84 and len(body["vitals"]) == 90 and len(body["sleep"]) == 30
     assert body["runs"][0]["day"] >= body["runs"][-1]["day"]
     assert body["plan"]["this_week"]["workouts"]
+
+
+def test_fitness_age_and_best_vdot(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ATHLETE_BIRTH_MONTH", "2002-01")
+    get_settings.cache_clear()
+    with SessionLocal() as s:
+        world.build(s)
+    body = client.get("/stats/health", headers={"X-Office-Key": KEY}).json()
+    fa = body["fitness_age"]
+    assert 20 <= fa["value"] <= 80 and fa["age"] > 20 and fa["label"]
+    assert fa["median_at_age"] and len(fa["history"]) == len(body["vo2max"])
+    assert body["best_vdot"] is None  # the eval world's runs carry no Strava best efforts
+
+
+def test_best_vdot_takes_the_strongest_all_time_effort() -> None:
+    records = [
+        {"name": "1 mile", "distance_m": 1609, "seconds": 300, "day": "2025-01-01", "run": "a"},
+        {
+            "name": "5k",
+            "distance_m": 5000,
+            "seconds": 22 * 60 + 59,
+            "day": "2024-05-01",
+            "run": "b",
+        },
+        {"name": "10k", "distance_m": 10000, "seconds": 50 * 60, "day": "2026-09-01", "run": "c"},
+    ]
+    best = best_vdot(records)
+    assert best["effort"] == "5k" and best["vdot"] == 42.3 and best["day"] == "2024-05-01"
+    assert best_vdot(records[:1]) is None
+
+
+def test_fitness_age_without_a_birth_month(client: TestClient) -> None:
+    with SessionLocal() as s:
+        world.build(s)
+    fa = client.get("/stats/health", headers={"X-Office-Key": KEY}).json()["fitness_age"]
+    assert fa["value"] and fa["age"] is None and fa["label"] is None
